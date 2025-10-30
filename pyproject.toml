@@ -24,4 +24,4 @@ classifiers = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["riverflow"]
+packages = ["src/riverflow"]

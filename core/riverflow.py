@@ -35,7 +35,7 @@ class DAGRunHistory:
     error: Optional[str] = None
 
 
-class RiverFlow:
+class Riverflow:
     """
     Singleton orchestration engine for managing DAG executions.
 
@@ -74,7 +74,7 @@ class RiverFlow:
         )
 
     @classmethod
-    def get_instance(cls) -> "RiverFlow":
+    def get_instance(cls) -> "Riverflow":
         """Get the singleton instance"""
         return cls()
 

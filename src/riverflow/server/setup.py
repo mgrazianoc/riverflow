@@ -7,7 +7,7 @@ using the RiverFlow logging system.
 
 import logging
 import sys
-from framework import RiverFlowFormatter
+from ..core.logger import RiverFlowFormatter
 
 
 def setup_unified_logging():
@@ -68,7 +68,7 @@ def get_uvicorn_log_config():
         "disable_existing_loggers": False,
         "formatters": {
             "riverflow": {
-                "()": "framework.core.logger.RiverFlowFormatter",
+                "()": "riverflow.core.logger.RiverFlowFormatter",
                 "use_colors": True,
             },
         },

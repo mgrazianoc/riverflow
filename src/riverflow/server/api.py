@@ -13,7 +13,7 @@ from typing import Optional, Dict, Any
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
-from ..core import RiverFlow, get_logger, DAGRunHistory
+from ..core.riverflow import Riverflow, get_logger, DAGRunHistory
 from .ws import ConnectionManager, create_update_callback
 
 
@@ -23,7 +23,7 @@ logger = get_logger(component="RiverFlowAPI")
 class RiverFlowAPI:
     """API handler for RiverFlow orchestration engine"""
 
-    def __init__(self, riverflow: RiverFlow, manager: ConnectionManager):
+    def __init__(self, riverflow: Riverflow, manager: ConnectionManager):
         self.riverflow = riverflow
         self.manager = manager
         self.logger = logger
@@ -296,7 +296,7 @@ class RiverFlowAPI:
         }
 
 
-def create_riverflow_api(riverflow: Optional[RiverFlow] = None) -> FastAPI:
+def create_riverflow_api(riverflow: Optional[Riverflow] = None) -> FastAPI:
     """
     Create a FastAPI application with RiverFlow monitoring endpoints.
 
@@ -307,7 +307,7 @@ def create_riverflow_api(riverflow: Optional[RiverFlow] = None) -> FastAPI:
         Configured FastAPI application
     """
     if riverflow is None:
-        riverflow = RiverFlow.get_instance()
+        riverflow = Riverflow.get_instance()
 
     # Initialize WebSocket connection manager
     manager = ConnectionManager()

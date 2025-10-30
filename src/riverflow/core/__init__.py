@@ -12,7 +12,7 @@ Import submodules directly:
 - riverflow.core.dag_executor
 """
 
-# Just expose the modules - users can import what they need
+# Expose modules
 from . import dag
 from . import task
 from . import riverflow
@@ -22,7 +22,14 @@ from . import logger
 from . import task_executor
 from . import dag_executor
 
+# Expose main classes for convenient importing
+from .dag import DAG
+from .task import Task
+from .riverflow import Riverflow
+from .logger import get_logger
+
 __all__ = [
+    # Modules
     "dag",
     "task", 
     "riverflow",
@@ -31,4 +38,9 @@ __all__ = [
     "logger",
     "task_executor",
     "dag_executor",
+    # Classes
+    "DAG",
+    "Task",
+    "Riverflow",
+    "get_logger",
 ]

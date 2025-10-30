@@ -12,7 +12,8 @@ from typing import Set
 
 from fastapi import WebSocket
 
-from ..core import DAGRunHistory, get_logger
+from ..core.riverflow import DAGRunHistory
+from ..core.logger import get_logger
 
 
 logger = get_logger(component="RiverFlowWebSocketManager")

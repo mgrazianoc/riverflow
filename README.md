@@ -4,12 +4,6 @@
 
 A lightweight, Python-native workflow orchestration library for defining, scheduling, and monitoring directed acyclic graphs (DAGs) of tasks.
 
-## Installation
-
-```bash
-pip install Riverflow
-```
-
 ## Why Riverflow?
 
 Riverflow is designed as a **lightweight alternative to Apache Airflow** for teams that need workflow orchestration without the operational overhead of distributed systems.

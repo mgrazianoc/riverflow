@@ -442,9 +442,10 @@ class Riverflow:
         trigger = self._create_trigger(dag.schedule, dag.timezone)
 
         if trigger:
-            # Schedule the DAG
+            # Schedule the DAG - AsyncIOScheduler can handle async functions directly
             self._scheduler.add_job(
-                func=lambda: asyncio.create_task(self.trigger(dag.dag_id, wait=False)),
+                func=self._scheduled_dag_trigger,
+                args=[dag.dag_id],
                 trigger=trigger,
                 id=dag.dag_id,
                 name=f"DAG: {dag.dag_id}",
@@ -453,6 +454,13 @@ class Riverflow:
             self.logger.info(
                 f"Scheduled DAG '{dag.dag_id}' with schedule: {dag.schedule}"
             )
+
+    async def _scheduled_dag_trigger(self, dag_id: str):
+        """Async wrapper for scheduled DAG triggers"""
+        try:
+            await self.trigger(dag_id, wait=False)
+        except Exception as e:
+            self.logger.error(f"Error in scheduled trigger for DAG '{dag_id}': {e}")
 
     def _create_trigger(self, schedule, tz: str):
         """Create APScheduler trigger from schedule definition"""

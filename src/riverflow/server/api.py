@@ -8,16 +8,19 @@ DAG executions through a web interface.
 import json
 from contextlib import asynccontextmanager
 from datetime import datetime
+from pathlib import Path
 from typing import Optional, Dict, Any
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, PlainTextResponse
 
 from ..core.riverflow import Riverflow, get_logger, DAGRunHistory
 from .ws import ConnectionManager, create_update_callback
 
 
 logger = get_logger(component="RiverFlowAPI")
+UI_DIR = Path(__file__).resolve().parent / "ui"
 
 
 class RiverFlowAPI:
@@ -52,6 +55,7 @@ class RiverFlowAPI:
             "name": "RiverFlow API",
             "version": "1.0.0",
             "endpoints": {
+                "ui": "/ui",
                 "websocket": "/ws",
                 "dags": "/api/dags",
                 "status": "/api/status",
@@ -59,6 +63,18 @@ class RiverFlowAPI:
                 "trigger": "/api/dags/{dag_id}/trigger",
             },
         }
+
+    async def get_ui_index(self) -> HTMLResponse:
+        content = (UI_DIR / "index.html").read_text(encoding="utf-8")
+        return HTMLResponse(content=content)
+
+    async def get_ui_js(self) -> PlainTextResponse:
+        content = (UI_DIR / "app.js").read_text(encoding="utf-8")
+        return PlainTextResponse(content=content, media_type="application/javascript")
+
+    async def get_ui_css(self) -> PlainTextResponse:
+        content = (UI_DIR / "styles.css").read_text(encoding="utf-8")
+        return PlainTextResponse(content=content, media_type="text/css")
 
     async def get_status(self) -> Dict[str, Any]:
         """Get current RiverFlow status"""
@@ -346,6 +362,9 @@ def create_riverflow_api(riverflow: Optional[Riverflow] = None) -> FastAPI:
 
     # Register REST endpoints
     app.get("/")(api.root)
+    app.get("/ui", response_class=HTMLResponse)(api.get_ui_index)
+    app.get("/ui/app.js", response_class=PlainTextResponse)(api.get_ui_js)
+    app.get("/ui/styles.css", response_class=PlainTextResponse)(api.get_ui_css)
     app.get("/api/status")(api.get_status)
     app.get("/api/dags")(api.get_dags)
     app.get("/api/dags/{dag_id}")(api.get_dag)

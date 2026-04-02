@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, Any
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, PlainTextResponse
 
@@ -58,6 +58,7 @@ class RiverFlowAPI:
                 "ui": "/ui",
                 "websocket": "/ws",
                 "dags": "/api/dags",
+                "dag_graph": "/api/dags/{dag_id}/graph",
                 "status": "/api/status",
                 "history": "/api/history",
                 "trigger": "/api/dags/{dag_id}/trigger",
@@ -118,6 +119,58 @@ class RiverFlowAPI:
             "dag_id": dag_id,
             "is_running": self.riverflow.is_running(dag_id),
             "stats": stats,
+        }
+
+    async def get_dag_graph(self, dag_id: str) -> Dict[str, Any]:
+        """Get DAG graph topology and latest task states for UI rendering."""
+        dag = self.riverflow.get_dag(dag_id)
+        if dag is None:
+            raise HTTPException(status_code=404, detail=f"Unknown DAG: {dag_id}")
+
+        latest_run = None
+        current = self.riverflow.get_current_runs().get(dag_id)
+        if current:
+            latest_run = current
+        else:
+            history = self.riverflow.get_history(dag_id=dag_id, limit=1)
+            if history:
+                latest_run = history[0]
+
+        latest_task_states = {}
+        if latest_run is not None:
+            latest_task_states = {
+                task_id: state.value for task_id, state in latest_run.task_states.items()
+            }
+
+        nodes = []
+        edges = []
+        for task_id, task in dag.tasks.items():
+            nodes.append(
+                {
+                    "id": task_id,
+                    "label": task_id,
+                    "state": latest_task_states.get(task_id, "none"),
+                    "trigger_rule": task.trigger_rule.value,
+                    "retries": task.retries,
+                }
+            )
+
+            for upstream in task.upstream_tasks:
+                edges.append(
+                    {
+                        "id": f"{upstream.task_id}->{task_id}",
+                        "source": upstream.task_id,
+                        "target": task_id,
+                    }
+                )
+
+        return {
+            "timestamp": datetime.now().isoformat(),
+            "dag_id": dag_id,
+            "is_running": self.riverflow.is_running(dag_id),
+            "run_id": latest_run.run_id if latest_run else None,
+            "nodes": nodes,
+            "edges": edges,
         }
 
     async def get_history(
@@ -368,6 +421,7 @@ def create_riverflow_api(riverflow: Optional[Riverflow] = None) -> FastAPI:
     app.get("/api/status")(api.get_status)
     app.get("/api/dags")(api.get_dags)
     app.get("/api/dags/{dag_id}")(api.get_dag)
+    app.get("/api/dags/{dag_id}/graph")(api.get_dag_graph)
     app.get("/api/history")(api.get_history)
     app.put("/api/dags/{dag_id}/trigger")(api.trigger_dag)
 

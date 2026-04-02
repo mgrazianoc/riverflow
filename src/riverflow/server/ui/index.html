@@ -3,61 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Riverflow Control Room</title>
+  <title>Riverflow DAG Studio</title>
+  <link rel="stylesheet" href="https://unpkg.com/reactflow@11/dist/style.css" />
   <link rel="stylesheet" href="/ui/styles.css" />
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/reactflow@11/dist/umd/index.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 </head>
 <body>
-  <div class="noise"></div>
-  <main class="layout">
-    <header class="hero">
-      <div>
-        <p class="kicker">Riverflow</p>
-        <h1>Control Room</h1>
-        <p class="subtitle">A focused orchestrator dashboard with live DAG visibility.</p>
-      </div>
-      <div class="hero-actions">
-        <button id="refresh-btn" class="btn btn-secondary">Refresh</button>
-      </div>
-    </header>
-
-    <section class="metrics" id="metrics"></section>
-
-    <section class="panel" aria-labelledby="dags-title">
-      <div class="panel-head">
-        <h2 id="dags-title">DAGs</h2>
-        <span id="ws-badge" class="badge badge-offline">WS: offline</span>
-      </div>
-      <div id="dags-list" class="dags-grid"></div>
-    </section>
-
-    <section class="panel" aria-labelledby="history-title">
-      <div class="panel-head">
-        <h2 id="history-title">Recent Runs</h2>
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>DAG</th>
-              <th>Run</th>
-              <th>State</th>
-              <th>Started</th>
-              <th>Duration</th>
-            </tr>
-          </thead>
-          <tbody id="history-body"></tbody>
-        </table>
-      </div>
-    </section>
-
-    <section class="panel" aria-labelledby="log-title">
-      <div class="panel-head">
-        <h2 id="log-title">Live Events</h2>
-      </div>
-      <pre id="event-log" class="event-log"></pre>
-    </section>
-  </main>
-
-  <script type="module" src="/ui/app.js"></script>
+  <div id="root"></div>
+  <script type="text/babel" data-presets="react" src="/ui/app.js"></script>
 </body>
 </html>

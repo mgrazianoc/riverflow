@@ -378,6 +378,10 @@ class Riverflow:
         """Get list of all registered DAG IDs"""
         return list(self._dags.keys())
 
+    def get_dag(self, dag_id: str) -> Optional[DAG]:
+        """Get DAG definition by ID."""
+        return self._dags.get(dag_id)
+
     def __repr__(self) -> str:
         return (
             f"RiverFlow("

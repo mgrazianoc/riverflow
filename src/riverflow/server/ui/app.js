@@ -1,177 +1,221 @@
-const metricsEl = document.getElementById("metrics");
-const dagsEl = document.getElementById("dags-list");
-const historyEl = document.getElementById("history-body");
-const refreshBtn = document.getElementById("refresh-btn");
-const wsBadge = document.getElementById("ws-badge");
-const eventLog = document.getElementById("event-log");
+const { useEffect, useMemo, useState, useCallback } = React;
+const {
+  ReactFlow,
+  Background,
+  Controls,
+  MiniMap,
+  Handle,
+  Position,
+} = window.ReactFlow;
 
-const state = {
-  dags: [],
-  history: [],
-};
-
-function logEvent(message) {
-  const now = new Date().toISOString();
-  eventLog.textContent = `[${now}] ${message}\n` + eventLog.textContent;
+function dagStateClass(state) {
+  if (!state || state === "none") return "none";
+  if (state === "running") return "running";
+  if (state === "success") return "success";
+  return "failed";
 }
 
-function safeDuration(seconds) {
-  if (seconds === null || seconds === undefined) {
-    return "-";
-  }
-  if (seconds < 60) {
-    return `${Math.round(seconds)}s`;
-  }
-  return `${Math.round(seconds / 60)}m`;
+function TaskNode({ data }) {
+  return (
+    <div className={`rf-node ${data.state}`}>
+      <Handle type="target" position={Position.Top} />
+      <div className="name">{data.label}</div>
+      <div className="sub">state: {data.state}</div>
+      <div className="sub">rule: {data.trigger_rule}</div>
+      <Handle type="source" position={Position.Bottom} />
+    </div>
+  );
 }
 
-function formatDate(value) {
-  if (!value) {
-    return "-";
-  }
-  return new Date(value).toLocaleString();
-}
+const nodeTypes = { taskNode: TaskNode };
 
-function renderMetrics(status) {
-  const cards = [
-    { label: "Registered DAGs", value: status.registered_dags.length },
-    { label: "Running DAGs", value: status.running_dags.length },
-    { label: "History Size", value: status.total_history },
-    { label: "WebSocket", value: wsBadge.classList.contains("badge-online") ? "Live" : "Offline" },
-  ];
+function levelByBfs(nodes, edges) {
+  const incomingCount = {};
+  const children = {};
+  nodes.forEach((n) => {
+    incomingCount[n.id] = 0;
+    children[n.id] = [];
+  });
+  edges.forEach((e) => {
+    incomingCount[e.target] += 1;
+    children[e.source].push(e.target);
+  });
 
-  metricsEl.innerHTML = cards
-    .map(
-      (card) =>
-        `<article class="metric"><span class="label">${card.label}</span><span class="value">${card.value}</span></article>`
-    )
-    .join("");
-}
-
-function dagStateClass(dag) {
-  if (dag.is_running) {
-    return "running";
-  }
-
-  const stats = dag.stats || {};
-  if ((stats.failed_count || 0) > 0 && (stats.last_run?.state === "failed")) {
-    return "failed";
-  }
-  if ((stats.success_count || 0) > 0) {
-    return "success";
-  }
-  return "idle";
-}
-
-async function triggerDag(dagId) {
-  try {
-    const response = await fetch(`/api/dags/${dagId}/trigger`, { method: "PUT" });
-    const payload = await response.json();
-    if (!payload.success) {
-      throw new Error(payload.error || "Unknown trigger error");
+  const queue = [];
+  const level = {};
+  Object.keys(incomingCount).forEach((id) => {
+    if (incomingCount[id] === 0) {
+      queue.push(id);
+      level[id] = 0;
     }
-    logEvent(`Triggered ${dagId} (${payload.run_id || "accepted"})`);
-  } catch (error) {
-    logEvent(`Trigger failed for ${dagId}: ${error.message}`);
-  } finally {
-    await refresh();
+  });
+
+  while (queue.length) {
+    const current = queue.shift();
+    const currentLevel = level[current] || 0;
+    children[current].forEach((child) => {
+      incomingCount[child] -= 1;
+      level[child] = Math.max(level[child] || 0, currentLevel + 1);
+      if (incomingCount[child] === 0) queue.push(child);
+    });
   }
+
+  return level;
 }
 
-function renderDags() {
-  dagsEl.innerHTML = state.dags
-    .map((dag) => {
-      const stats = dag.stats || {};
-      const stateClass = dagStateClass(dag);
-      return `
-        <article class="dag-card">
-          <div class="dag-meta">
-            <strong>${dag.dag_id}</strong>
-            <span class="state ${stateClass}">${stateClass}</span>
-          </div>
+function buildFlow(graph) {
+  const levelMap = levelByBfs(graph.nodes, graph.edges);
+  const byLevel = {};
+
+  graph.nodes.forEach((node) => {
+    const lvl = levelMap[node.id] || 0;
+    if (!byLevel[lvl]) byLevel[lvl] = [];
+    byLevel[lvl].push(node);
+  });
+
+  const spacedNodes = [];
+  Object.keys(byLevel)
+    .map((l) => Number(l))
+    .sort((a, b) => a - b)
+    .forEach((lvl) => {
+      byLevel[lvl].forEach((node, idx) => {
+        spacedNodes.push({
+          id: node.id,
+          type: "taskNode",
+          position: { x: lvl * 260, y: idx * 140 },
+          data: {
+            label: node.label,
+            state: node.state,
+            trigger_rule: node.trigger_rule,
+          },
+        });
+      });
+    });
+
+  const flowEdges = graph.edges.map((edge) => ({
+    id: edge.id,
+    source: edge.source,
+    target: edge.target,
+    animated: graph.is_running,
+    style: { stroke: "#6b8795", strokeWidth: 1.7 },
+  }));
+
+  return { nodes: spacedNodes, edges: flowEdges };
+}
+
+function App() {
+  const [dags, setDags] = useState([]);
+  const [selectedDag, setSelectedDag] = useState("");
+  const [graph, setGraph] = useState({ nodes: [], edges: [], is_running: false });
+  const [wsOnline, setWsOnline] = useState(false);
+
+  const refreshDags = useCallback(async () => {
+    const response = await fetch("/api/dags");
+    const payload = await response.json();
+    const dagItems = payload.dags || [];
+    setDags(dagItems);
+    if (!selectedDag && dagItems.length > 0) {
+      setSelectedDag(dagItems[0].dag_id);
+    }
+  }, [selectedDag]);
+
+  const refreshGraph = useCallback(async (dagId) => {
+    if (!dagId) return;
+    const response = await fetch(`/api/dags/${dagId}/graph`);
+    if (!response.ok) return;
+    const payload = await response.json();
+    setGraph(payload);
+  }, []);
+
+  useEffect(() => {
+    refreshDags();
+  }, [refreshDags]);
+
+  useEffect(() => {
+    refreshGraph(selectedDag);
+  }, [selectedDag, refreshGraph]);
+
+  useEffect(() => {
+    const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+    const socket = new WebSocket(`${protocol}://${window.location.host}/ws`);
+
+    socket.addEventListener("open", () => setWsOnline(true));
+    socket.addEventListener("close", () => setWsOnline(false));
+    socket.addEventListener("message", async (event) => {
+      const message = JSON.parse(event.data);
+      if (message.type === "dag_update" && selectedDag) {
+        await refreshGraph(selectedDag);
+      }
+    });
+
+    return () => socket.close();
+  }, [refreshGraph, selectedDag]);
+
+  const triggerDag = async () => {
+    if (!selectedDag) return;
+    await fetch(`/api/dags/${selectedDag}/trigger`, { method: "PUT" });
+    await refreshGraph(selectedDag);
+  };
+
+  const flow = useMemo(() => buildFlow(graph), [graph]);
+  const activeDag = dags.find((d) => d.dag_id === selectedDag);
+  const activeState = activeDag?.is_running ? "running" : "none";
+
+  return (
+    <div className="app">
+      <aside className="sidebar">
+        <div className="head">
+          <p className="kicker">Riverflow</p>
+          <h1 className="title">DAG Studio</h1>
+        </div>
+
+        <div className="controls">
+          <button className="button" onClick={triggerDag} disabled={!selectedDag}>Trigger Selected DAG</button>
+          <button className="button ghost" onClick={() => refreshGraph(selectedDag)} disabled={!selectedDag}>Refresh Graph</button>
+          <button className="button ghost" onClick={refreshDags}>Refresh DAG List</button>
+          <span className={`ws-badge ${wsOnline ? "online" : "offline"}`}>WS: {wsOnline ? "online" : "offline"}</span>
+        </div>
+
+        <div className="dag-list">
+          {dags.map((dag) => (
+            <article
+              key={dag.dag_id}
+              className={`dag-item ${dag.dag_id === selectedDag ? "active" : ""}`}
+              onClick={() => setSelectedDag(dag.dag_id)}
+            >
+              <strong>{dag.dag_id}</strong>
+              <div className="meta">runs: {dag.stats?.total_runs || 0}</div>
+              <div className="meta">success: {Math.round(dag.stats?.success_rate || 0)}%</div>
+            </article>
+          ))}
+        </div>
+      </aside>
+
+      <section className="main">
+        <div className="main-top">
           <div>
-            <small>Total runs: ${stats.total_runs || 0}</small><br />
-            <small>Success rate: ${Math.round(stats.success_rate || 0)}%</small><br />
-            <small>Avg duration: ${safeDuration(stats.avg_duration_seconds)}</small>
+            <strong>{selectedDag || "No DAG selected"}</strong>
+            <div className="meta">run: {graph.run_id || "-"}</div>
           </div>
-          <button class="btn btn-primary" data-dag-trigger="${dag.dag_id}">Trigger</button>
-        </article>`;
-    })
-    .join("");
+          <span className={`status ${dagStateClass(activeState)}`}>{dagStateClass(activeState)}</span>
+        </div>
 
-  document.querySelectorAll("[data-dag-trigger]").forEach((button) => {
-    button.addEventListener("click", () => triggerDag(button.dataset.dagTrigger));
-  });
+        <div className="graph-wrap">
+          <ReactFlow
+            nodes={flow.nodes}
+            edges={flow.edges}
+            nodeTypes={nodeTypes}
+            fitView
+            fitViewOptions={{ padding: 0.2 }}
+          >
+            <MiniMap />
+            <Controls />
+            <Background color="#d8e2e9" gap={16} />
+          </ReactFlow>
+        </div>
+      </section>
+    </div>
+  );
 }
 
-function renderHistory() {
-  historyEl.innerHTML = state.history
-    .map(
-      (run) => `
-        <tr>
-          <td>${run.dag_id}</td>
-          <td>${run.run_id}</td>
-          <td><span class="state ${run.state}">${run.state}</span></td>
-          <td>${formatDate(run.start_time)}</td>
-          <td>${safeDuration(run.duration_seconds)}</td>
-        </tr>
-      `
-    )
-    .join("");
-}
-
-async function refresh() {
-  const [statusRes, dagsRes, historyRes] = await Promise.all([
-    fetch("/api/status"),
-    fetch("/api/dags"),
-    fetch("/api/history?limit=20"),
-  ]);
-
-  const status = await statusRes.json();
-  const dagsPayload = await dagsRes.json();
-  const historyPayload = await historyRes.json();
-
-  state.dags = dagsPayload.dags || [];
-  state.history = historyPayload.runs || [];
-
-  renderMetrics(status);
-  renderDags();
-  renderHistory();
-}
-
-function connectWs() {
-  const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-  const socket = new WebSocket(`${protocol}://${window.location.host}/ws`);
-
-  socket.addEventListener("open", () => {
-    wsBadge.textContent = "WS: online";
-    wsBadge.classList.remove("badge-offline");
-    wsBadge.classList.add("badge-online");
-    logEvent("WebSocket connected");
-  });
-
-  socket.addEventListener("message", async (event) => {
-    const payload = JSON.parse(event.data);
-    logEvent(`Event: ${payload.type}`);
-    await refresh();
-  });
-
-  socket.addEventListener("close", () => {
-    wsBadge.textContent = "WS: offline";
-    wsBadge.classList.remove("badge-online");
-    wsBadge.classList.add("badge-offline");
-    logEvent("WebSocket disconnected, retrying in 3s");
-    setTimeout(connectWs, 3000);
-  });
-
-  socket.addEventListener("error", () => {
-    socket.close();
-  });
-}
-
-refreshBtn.addEventListener("click", refresh);
-
-(async function bootstrap() {
-  await refresh();
-  connectWs();
-})();
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);

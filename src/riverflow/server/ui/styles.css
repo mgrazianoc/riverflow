@@ -644,3 +644,168 @@ body {
     box-shadow: var(--shadow-lg);
   }
 }
+
+/* ===== Task Detail: Actions & Logs ===== */
+
+.task-detail-actions {
+  display: flex;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.btn-sm {
+  padding: 6px 10px;
+  font-size: 0.75rem;
+}
+
+.task-logs {
+  margin-top: 8px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.task-logs-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.task-logs-count {
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+.task-logs-empty {
+  font-size: 0.78rem;
+  color: var(--muted);
+  padding: 8px 0;
+}
+
+.task-logs-list {
+  max-height: 320px;
+  overflow-y: auto;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.task-log-entry {
+  display: flex;
+  gap: 6px;
+  padding: 2px 4px;
+  border-radius: 3px;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.task-log-entry.error,
+.task-log-entry.critical {
+  background: var(--fail-bg);
+}
+
+.task-log-entry.warning {
+  background: var(--run-bg);
+}
+
+.task-log-level {
+  flex-shrink: 0;
+  width: 50px;
+  font-weight: 700;
+  text-align: right;
+  color: var(--muted);
+}
+
+.task-log-entry.info .task-log-level { color: var(--ok); }
+.task-log-entry.warning .task-log-level { color: var(--run); }
+.task-log-entry.error .task-log-level,
+.task-log-entry.critical .task-log-level { color: var(--fail); }
+
+.task-log-msg {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ===== History Panel: Expandable Rows ===== */
+
+.history-item {
+  border-radius: var(--radius);
+  transition: background 0.1s;
+}
+
+.history-row {
+  cursor: pointer;
+}
+
+.history-row.expanded {
+  background: var(--bg);
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+
+.history-detail {
+  background: var(--bg);
+  border-radius: 0 0 var(--radius) var(--radius);
+  padding: 8px 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.history-detail-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.history-detail-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.history-detail-value {
+  font-size: 0.8rem;
+}
+
+.history-detail-value.mono {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--subtle);
+}
+
+.error-text {
+  color: var(--fail);
+  font-size: 0.78rem;
+}
+
+.history-tasks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.history-task-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 0.72rem;
+}
+
+.history-task-name {
+  font-weight: 600;
+}

@@ -1,6 +1,7 @@
 import uvicorn
 
 from riverflow.core import DAG, Riverflow
+from riverflow.core.logger import get_task_logger
 from datetime import timedelta
 
 from riverflow.server.api import create_riverflow_api
@@ -13,22 +14,26 @@ def build_dag() -> DAG:
 
         @dag.task("extract_data")
         async def extract():
-            print("Extracting data...")
+            logger = get_task_logger()
+            logger.info("Extracting data...")
             # Your extraction logic here
 
         @dag.task("transform_data_1")
         async def transform_1():
-            print("Transforming data 1...")
+            logger = get_task_logger()
+            logger.info("Transforming data 1...")
             # Your transformation logic here
 
         @dag.task("transform_data_2")
         async def transform_2():
-            print("Transforming data 2...")
+            logger = get_task_logger()
+            logger.info("Transforming data 2...")
             # Your transformation logic here
 
         @dag.task("load_data")
         async def load_data():
-            print("Loading data...")
+            logger = get_task_logger()
+            logger.info("Loading data...")
             # Your loading logic here
 
         # Set dependencies using >> operator

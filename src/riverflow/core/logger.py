@@ -8,11 +8,17 @@ Provides a centralized logging system for the RiverFlow framework with:
 - Context-aware logging (DAG ID, Task ID, Run ID)
 """
 
+import contextvars
 import functools
 import inspect
 import logging
 import sys
+from datetime import datetime as _datetime
 from typing import Optional
+
+# Preserve original streams before any replacement
+_original_stdout = sys.stdout
+_original_stderr = sys.stderr
 
 
 # ANSI color codes
@@ -151,8 +157,8 @@ class RiverFlowLogger:
         # Remove any existing handlers
         self._logger.handlers.clear()
 
-        # Create console handler
-        handler = logging.StreamHandler(sys.stdout)
+        # Create console handler (use original stdout to avoid recursion with _TaskOutputStream)
+        handler = logging.StreamHandler(_original_stdout)
         handler.setLevel(logging.DEBUG)
 
         # Add custom formatter
@@ -267,6 +273,114 @@ class RiverFlowLogger:
 
         # Add to logger
         instance._logger.addHandler(file_handler)
+
+
+# ========== Task-scoped logging ==========
+
+# ContextVar scoped to each asyncio Task — safe for concurrent coroutines
+_current_task_logger: contextvars.ContextVar[Optional[logging.LoggerAdapter]] = (
+    contextvars.ContextVar("_current_task_logger", default=None)
+)
+
+
+class TaskLogHandler(logging.Handler):
+    """
+    Captures log records into an in-memory list.
+
+    Attach to a child logger during task execution, then flush
+    the accumulated records to a LogStore when the task completes.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.records: list[dict] = []
+
+    def emit(self, record):
+        try:
+            self.records.append(
+                {
+                    "timestamp": _datetime.fromtimestamp(record.created).isoformat(),
+                    "level": record.levelname,
+                    "message": record.getMessage(),
+                }
+            )
+        except Exception:
+            self.handleError(record)
+
+
+class _TaskOutputStream:
+    """
+    Wraps a standard stream so that writes from inside a task context
+    are routed to the task logger instead of the raw stream.
+
+    When no task context is active, writes pass through to the original stream.
+    Because ``_current_task_logger`` is a ContextVar, each asyncio Task sees
+    its own value — concurrent tasks do not interfere with each other.
+    """
+
+    def __init__(self, original, level: str = "INFO"):
+        self._original = original
+        self._level = level
+
+    def write(self, text):
+        task_logger = _current_task_logger.get(None)
+        if task_logger is not None:
+            for line in text.splitlines():
+                if line.strip():
+                    if self._level == "ERROR":
+                        task_logger.error(line)
+                    else:
+                        task_logger.info(line)
+            return len(text)
+        return self._original.write(text)
+
+    def flush(self):
+        return self._original.flush()
+
+    def fileno(self):
+        return self._original.fileno()
+
+    def isatty(self):
+        return self._original.isatty()
+
+    def __getattr__(self, name):
+        return getattr(self._original, name)
+
+
+def install_task_stdout_capture():
+    """
+    Replace ``sys.stdout`` / ``sys.stderr`` with task-aware wrappers.
+
+    Call once at startup (e.g. in ``Riverflow.__init__``).  Afterwards every
+    ``print()`` inside a task execution context is automatically captured as
+    a log entry in the task's log store.
+    """
+    if not isinstance(sys.stdout, _TaskOutputStream):
+        sys.stdout = _TaskOutputStream(_original_stdout, level="INFO")
+    if not isinstance(sys.stderr, _TaskOutputStream):
+        sys.stderr = _TaskOutputStream(_original_stderr, level="ERROR")
+
+
+def get_task_logger() -> logging.LoggerAdapter:
+    """
+    Return the logger for the currently executing task.
+
+    Use this inside task functions to emit structured log entries that will
+    be captured and stored for later inspection in the UI::
+
+        from riverflow.core.logger import get_task_logger
+
+        @dag.task("extract")
+        async def extract():
+            logger = get_task_logger()
+            logger.info("Extracting data…")
+
+    Falls back to a generic ``Task`` logger when called outside of a task.
+    """
+    logger = _current_task_logger.get()
+    if logger is None:
+        return get_logger(component="Task")
+    return logger
 
 
 # Convenience function for getting logger

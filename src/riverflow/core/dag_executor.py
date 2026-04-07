@@ -27,10 +27,14 @@ class DAGExecutor:
         self,
         dag: DAG,
         on_task_state_change: Optional[Callable[[str, TaskState], None]] = None,
+        run_id: Optional[str] = None,
+        log_store=None,
     ):
         self.dag = dag
         self.task_executor = TaskExecutor()
         self.on_task_state_change = on_task_state_change
+        self.run_id = run_id
+        self.log_store = log_store
         self.logger = get_logger(component="DAGExecutor", dag_id=dag.dag_id)
 
     def _should_task_run(
@@ -277,7 +281,13 @@ class DAGExecutor:
             def task_state_callback(state: TaskState):
                 self._notify_state_change(task.task_id, state)
 
-            return await self.task_executor.execute_task(task, task_state_callback)
+            return await self.task_executor.execute_task(
+                task,
+                task_state_callback,
+                run_id=self.run_id,
+                dag_id=self.dag.dag_id,
+                log_store=self.log_store,
+            )
         except (TaskFailedError, MaxRetriesExceededError, TaskTimeoutError):
             # Re-raise known task errors
             raise

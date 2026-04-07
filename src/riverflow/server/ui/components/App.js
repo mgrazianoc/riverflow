@@ -83,6 +83,12 @@ export function App() {
     refreshGraph(selectedDag);
   };
 
+  const handleTriggerTask = async (dagId, taskId) => {
+    await api.triggerTask(dagId, taskId);
+    refreshGraph(dagId);
+    refreshHistory();
+  };
+
   const handleRefresh = () => {
     refreshDags();
     refreshGraph(selectedDag);
@@ -142,6 +148,10 @@ export function App() {
               ${selectedTask && html`
                 <${TaskDetail}
                   task=${selectedTask}
+                  runId=${graph.run_id}
+                  dagId=${selectedDag}
+                  api=${api}
+                  onTriggerTask=${handleTriggerTask}
                   onClose=${() => setSelectedTask(null)}
                 />
               `}

@@ -39,5 +39,23 @@ export function useApi() {
     [fetchJson]
   );
 
-  return { loading, getDags, getDagGraph, getHistory, triggerDag };
+  const triggerTask = useCallback(
+    (dagId, taskId) =>
+      fetchJson(
+        `/api/dags/${encodeURIComponent(dagId)}/tasks/${encodeURIComponent(taskId)}/trigger`,
+        { method: "PUT" }
+      ),
+    [fetchJson]
+  );
+
+  const getRunLogs = useCallback(
+    (runId, taskId) => {
+      let url = `/api/runs/${encodeURIComponent(runId)}/logs`;
+      if (taskId) url += `?task_id=${encodeURIComponent(taskId)}`;
+      return fetchJson(url);
+    },
+    [fetchJson]
+  );
+
+  return { loading, getDags, getDagGraph, getHistory, triggerDag, triggerTask, getRunLogs };
 }

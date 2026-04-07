@@ -10,6 +10,7 @@ Import submodules directly:
 - riverflow.core.logger
 - riverflow.core.task_executor
 - riverflow.core.dag_executor
+- riverflow.core.log_store
 """
 
 # Expose modules
@@ -21,12 +22,14 @@ from . import errors
 from . import logger
 from . import task_executor
 from . import dag_executor
+from . import log_store
 
 # Expose main classes for convenient importing
 from .dag import DAG
 from .task import Task
 from .riverflow import Riverflow
-from .logger import get_logger
+from .logger import get_logger, get_task_logger
+from .log_store import LogStore
 
 __all__ = [
     # Modules

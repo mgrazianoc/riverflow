@@ -201,6 +201,43 @@ class RiverFlowAPI:
                 "error": str(e),
             }
 
+    async def trigger_task(self, dag_id: str, task_id: str) -> Dict[str, Any]:
+        """Trigger a single task within a DAG (ignoring dependencies)"""
+        try:
+            result = await self.riverflow.trigger_task(dag_id, task_id)
+            return {
+                "timestamp": datetime.now().isoformat(),
+                "success": True,
+                "dag_id": dag_id,
+                "task_id": task_id,
+                "run_id": result.run_id,
+                "state": result.state.value,
+            }
+        except Exception as e:
+            self.logger.error(
+                f"Failed to trigger task {task_id} in DAG {dag_id}: {e}"
+            )
+            return {
+                "timestamp": datetime.now().isoformat(),
+                "success": False,
+                "dag_id": dag_id,
+                "task_id": task_id,
+                "error": str(e),
+            }
+
+    async def get_run_logs(
+        self, run_id: str, task_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Get captured task logs for a run"""
+        logs = self.riverflow.get_task_logs(run_id, task_id)
+        return {
+            "timestamp": datetime.now().isoformat(),
+            "run_id": run_id,
+            "task_id": task_id,
+            "total": len(logs),
+            "logs": logs,
+        }
+
     # ========== WebSocket Handler ==========
 
     async def websocket_handler(self, websocket: WebSocket):
@@ -415,6 +452,8 @@ def create_riverflow_api(riverflow: Optional[Riverflow] = None) -> FastAPI:
     app.get("/api/dags/{dag_id}/graph")(api.get_dag_graph)
     app.get("/api/history")(api.get_history)
     app.put("/api/dags/{dag_id}/trigger")(api.trigger_dag)
+    app.put("/api/dags/{dag_id}/tasks/{task_id}/trigger")(api.trigger_task)
+    app.get("/api/runs/{run_id}/logs")(api.get_run_logs)
 
     # Register WebSocket endpoint
     app.websocket("/ws")(api.websocket_handler)

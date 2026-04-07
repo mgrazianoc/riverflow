@@ -17,9 +17,11 @@ from apscheduler.triggers.interval import IntervalTrigger
 from pytz import timezone as pytz_timezone
 
 from .dag import DAG, DAGRunState
-from .logger import get_logger
+from .logger import get_logger, install_task_stdout_capture
 from .dag_executor import DAGExecutor
 from .task import TaskState
+from .task_executor import TaskExecutor
+from .log_store import LogStore
 
 
 @dataclass
@@ -69,9 +71,11 @@ class Riverflow:
         self._run_counter = 0
         self._scheduler = None
         self._scheduler_started = False
+        self._log_store = LogStore()
         self.logger = (
             logger if logger is not None else get_logger(component="RiverFlow")
         )
+        install_task_stdout_capture()
 
     @classmethod
     def get_instance(cls) -> "Riverflow":
@@ -208,7 +212,12 @@ class Riverflow:
                 self._notify_update(run_history)
 
             # Execute the DAG using DAGExecutor with state change callback
-            dag_executor = DAGExecutor(dag, on_task_state_change=on_task_state_change)
+            dag_executor = DAGExecutor(
+                dag,
+                on_task_state_change=on_task_state_change,
+                run_id=run_id,
+                log_store=self._log_store,
+            )
             task_states = await dag_executor.run()
 
             # Ensure final states are in sync
@@ -238,6 +247,9 @@ class Riverflow:
             # Remove from current runs
             if dag.dag_id in self._current_runs:
                 del self._current_runs[dag.dag_id]
+
+            # Persist to SQLite
+            self._persist_run(run_history)
 
             # Notify final state
             self._notify_update(run_history)
@@ -381,6 +393,109 @@ class Riverflow:
     def get_dag(self, dag_id: str) -> Optional[DAG]:
         """Get DAG definition by ID."""
         return self._dags.get(dag_id)
+
+    @property
+    def log_store(self) -> LogStore:
+        """Access the underlying log store."""
+        return self._log_store
+
+    # ========== PERSISTENCE HELPERS ==========
+
+    def _persist_run(self, run_history: DAGRunHistory) -> None:
+        """Save a run record to SQLite."""
+        if self._log_store:
+            task_states = {
+                tid: state.value
+                for tid, state in run_history.task_states.items()
+            }
+            self._log_store.save_run(
+                run_id=run_history.run_id,
+                dag_id=run_history.dag_id,
+                state=run_history.state.value,
+                start_time=run_history.start_time,
+                end_time=run_history.end_time,
+                task_states=task_states,
+                error=run_history.error,
+            )
+
+    def get_task_logs(
+        self, run_id: str, task_id: Optional[str] = None
+    ) -> List[Dict]:
+        """Retrieve captured task logs from the store."""
+        return self._log_store.get_task_logs(run_id, task_id)
+
+    # ========== SINGLE TASK TRIGGER ==========
+
+    async def trigger_task(
+        self, dag_id: str, task_id: str
+    ) -> DAGRunHistory:
+        """
+        Trigger a single task within a DAG, ignoring its dependencies.
+
+        Useful for re-running a specific task or debugging.
+        """
+        if dag_id not in self._dags:
+            raise ValueError(f"DAG '{dag_id}' not registered with RiverFlow")
+
+        dag = self._dags[dag_id]
+        task = dag.get_task(task_id)
+        if task is None:
+            raise ValueError(
+                f"Task '{task_id}' not found in DAG '{dag_id}'"
+            )
+
+        self._run_counter += 1
+        run_id = (
+            f"{dag_id}_{task_id}"
+            f"_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            f"_{self._run_counter}"
+        )
+
+        run_history = DAGRunHistory(
+            dag_id=dag_id,
+            run_id=run_id,
+            state=DAGRunState.RUNNING,
+            start_time=datetime.now(),
+        )
+        self._run_history.append(run_history)
+        self._notify_update(run_history)
+
+        try:
+            task_executor = TaskExecutor()
+
+            def on_state_change(state: TaskState):
+                run_history.task_states[task_id] = state
+                self._notify_update(run_history)
+
+            instance = await task_executor.execute_task(
+                task,
+                on_state_change=on_state_change,
+                run_id=run_id,
+                dag_id=dag_id,
+                log_store=self._log_store,
+            )
+            run_history.task_states[task_id] = instance.state
+            run_history.end_time = datetime.now()
+            run_history.state = (
+                DAGRunState.SUCCESS
+                if instance.state == TaskState.SUCCESS
+                else DAGRunState.FAILED
+            )
+
+        except Exception as e:
+            run_history.state = DAGRunState.FAILED
+            run_history.end_time = datetime.now()
+            run_history.error = str(e)
+            run_history.task_states[task_id] = TaskState.FAILED
+            self.logger.error(
+                f"Task '{task_id}' in DAG '{dag_id}' failed: {e}"
+            )
+
+        finally:
+            self._persist_run(run_history)
+            self._notify_update(run_history)
+
+        return run_history
 
     def __repr__(self) -> str:
         return (

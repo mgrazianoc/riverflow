@@ -10,6 +10,7 @@
     "generate-types": "openapi-typescript http://localhost:8083/openapi.json -o src/types/api.d.ts"
   },
   "devDependencies": {
+    "@dagrejs/dagre": "^3.0.0",
     "esbuild": "^0.28.0",
     "openapi-typescript": "^7.13.0",
     "typescript": "~5.8.3"

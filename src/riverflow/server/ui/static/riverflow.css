@@ -176,6 +176,27 @@ body {
   border-radius: var(--radius-lg); padding: 24px;
   display: flex; flex-wrap: wrap; gap: 16px; align-items: center;
   position: relative; min-height: 120px;
+  overflow: auto;
+}
+
+/* Dagre-upgraded graph: absolute positioning for nodes */
+.graph-container.graph-laid-out {
+  display: block;
+}
+.graph-container.graph-laid-out .graph-node {
+  position: absolute;
+}
+
+.graph-edges-svg {
+  position: absolute; top: 0; left: 0;
+  pointer-events: none;
+}
+.graph-edge {
+  fill: none;
+  stroke: var(--subtle, #94a3b8);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
 }
 
 .graph-node {

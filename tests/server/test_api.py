@@ -35,8 +35,9 @@ class TestDagsEndpoints:
         resp = await client.get("/api/dags")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["total"] >= 1
-        ids = [d["dag_id"] for d in data["dags"]]
+        assert isinstance(data, list)
+        assert len(data) >= 1
+        ids = [d["dag_id"] for d in data]
         assert "test_dag" in ids
 
     async def test_get_single_dag(self, client: AsyncClient):
@@ -60,24 +61,21 @@ class TestTriggerEndpoints:
         resp = await client.put("/api/dags/test_dag/trigger")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["success"] is True
         assert data["state"] == "success"
         assert data["run_id"] is not None
+        assert data["dag_id"] == "test_dag"
 
     async def test_trigger_single_task(self, client: AsyncClient):
         resp = await client.put("/api/dags/test_dag/tasks/step_a/trigger")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["success"] is True
-        assert data["task_id"] == "step_a"
+        assert data["dag_id"] == "test_dag"
         assert data["run_id"] is not None
+        assert "step_a" in data["task_states"]
 
     async def test_trigger_unknown_dag(self, client: AsyncClient):
         resp = await client.put("/api/dags/nonexistent/trigger")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["success"] is False
-        assert "error" in data
+        assert resp.status_code == 500
 
 
 class TestHistoryEndpoint:
@@ -85,26 +83,28 @@ class TestHistoryEndpoint:
         resp = await client.get("/api/history")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["total"] == 0
+        assert isinstance(data, list)
+        assert len(data) == 0
 
     async def test_history_after_trigger(self, client: AsyncClient):
         await client.put("/api/dags/test_dag/trigger")
         resp = await client.get("/api/history")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["total"] >= 1
-        assert data["runs"][0]["dag_id"] == "test_dag"
-        assert "run_id" in data["runs"][0]
-        assert "task_states" in data["runs"][0]
+        assert isinstance(data, list)
+        assert len(data) >= 1
+        assert data[0]["dag_id"] == "test_dag"
+        assert "run_id" in data[0]
+        assert "task_states" in data[0]
 
     async def test_history_filter_by_dag(self, client: AsyncClient):
         await client.put("/api/dags/test_dag/trigger")
         resp = await client.get("/api/history?dag_id=test_dag")
         assert resp.status_code == 200
-        assert resp.json()["total"] >= 1
+        assert len(resp.json()) >= 1
 
         resp2 = await client.get("/api/history?dag_id=other")
-        assert resp2.json()["total"] == 0
+        assert len(resp2.json()) == 0
 
 
 class TestRunLogsEndpoint:

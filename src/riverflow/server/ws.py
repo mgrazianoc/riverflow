@@ -14,6 +14,7 @@ from fastapi import WebSocket
 
 from ..core.riverflow import DAGRunHistory
 from ..core.logger import get_logger
+from ..models.converters import run_to_model
 
 
 logger = get_logger(component="RiverFlowWebSocketManager")
@@ -76,32 +77,11 @@ def create_update_callback(manager: ConnectionManager):
 
     def update_callback(run_history: DAGRunHistory):
         """Callback function that broadcasts DAG state updates via WebSocket"""
+        run_model = run_to_model(run_history)
         message = {
             "type": "dag_update",
             "timestamp": datetime.now().isoformat(),
-            "data": {
-                "dag_id": run_history.dag_id,
-                "run_id": run_history.run_id,
-                "state": run_history.state.value,
-                "start_time": (
-                    run_history.start_time.isoformat()
-                    if run_history.start_time
-                    else None
-                ),
-                "end_time": (
-                    run_history.end_time.isoformat() if run_history.end_time else None
-                ),
-                "task_states": {
-                    task_id: state.value
-                    for task_id, state in run_history.task_states.items()
-                },
-                "error": run_history.error,
-                "duration_seconds": (
-                    (run_history.end_time - run_history.start_time).total_seconds()
-                    if run_history.start_time and run_history.end_time
-                    else None
-                ),
-            },
+            "data": run_model.model_dump(mode="json"),
         }
 
         # Broadcast to all WebSocket clients

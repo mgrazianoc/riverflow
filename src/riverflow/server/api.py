@@ -3,6 +3,9 @@ FastAPI Server for RiverFlow
 
 Provides REST and WebSocket endpoints for monitoring and controlling
 DAG executions through a web interface.
+
+Every endpoint returns a Pydantic model — no raw dicts cross
+the boundary between the engine and the outside world.
 """
 
 import json
@@ -15,8 +18,25 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
 from ..core.riverflow import Riverflow, get_logger, DAGRunHistory
+from ..models import (
+    APIInfoModel,
+    DAGGraphModel,
+    DAGModel,
+    DAGRunModel,
+    DAGSummaryModel,
+    StatusModel,
+    TaskLogsModel,
+)
+from ..models.converters import (
+    dag_to_graph,
+    dag_to_model,
+    dag_to_summary,
+    logs_to_model,
+    run_to_model,
+)
 from .ws import ConnectionManager, create_update_callback
 
 
@@ -50,12 +70,10 @@ class RiverFlowAPI:
 
     # ========== REST Endpoints ==========
 
-    async def root(self) -> Dict[str, Any]:
+    async def root(self) -> APIInfoModel:
         """API information endpoint"""
-        return {
-            "name": "RiverFlow API",
-            "version": "1.0.0",
-            "endpoints": {
+        return APIInfoModel(
+            endpoints={
                 "ui": "/ui",
                 "websocket": "/ws",
                 "dags": "/api/dags",
@@ -64,57 +82,40 @@ class RiverFlowAPI:
                 "history": "/api/history",
                 "trigger": "/api/dags/{dag_id}/trigger",
             },
-        }
+        )
 
-    async def get_ui_index(self) -> HTMLResponse:
-        content = (UI_DIR / "index.html").read_text(encoding="utf-8")
-        return HTMLResponse(content=content)
-
-    async def get_status(self) -> Dict[str, Any]:
+    async def get_status(self) -> StatusModel:
         """Get current RiverFlow status"""
-        return {
-            "timestamp": datetime.now().isoformat(),
-            "registered_dags": self.riverflow.get_registered_dags(),
-            "running_dags": list(self.riverflow.get_current_runs().keys()),
-            "total_history": len(self.riverflow.get_history()),
-            "active_connections": len(self.manager.active_connections),
-        }
+        return StatusModel(
+            timestamp=datetime.now(),
+            registered_dags=self.riverflow.get_registered_dags(),
+            running_dags=list(self.riverflow.get_current_runs().keys()),
+            total_history=len(self.riverflow.get_history()),
+            active_connections=len(self.manager.active_connections),
+        )
 
-    async def get_dags(self) -> Dict[str, Any]:
-        """Get list of registered DAGs with details"""
-        dags = []
+    async def get_dags(self) -> list[DAGSummaryModel]:
+        """Get list of registered DAGs with summary stats."""
+        dags: list[DAGSummaryModel] = []
         for dag_id in self.riverflow.get_registered_dags():
-            dag_info = {
-                "dag_id": dag_id,
-                "is_running": self.riverflow.is_running(dag_id),
-            }
-
-            # Try to get DAG stats if available
+            is_running = self.riverflow.is_running(dag_id)
             try:
                 stats = self.riverflow.get_dag_stats(dag_id)
-                dag_info["stats"] = stats
             except Exception:
-                pass
+                stats = {}
+            dags.append(dag_to_summary(dag_id, is_running, stats))
+        return dags
 
-            dags.append(dag_info)
-
-        return {
-            "timestamp": datetime.now().isoformat(),
-            "total": len(dags),
-            "dags": dags,
-        }
-
-    async def get_dag(self, dag_id: str) -> Dict[str, Any]:
+    async def get_dag(self, dag_id: str) -> DAGModel:
         """Get details about a specific DAG"""
+        dag = self.riverflow.get_dag(dag_id)
+        if dag is None:
+            raise HTTPException(status_code=404, detail=f"Unknown DAG: {dag_id}")
         stats = self.riverflow.get_dag_stats(dag_id)
-        return {
-            "timestamp": datetime.now().isoformat(),
-            "dag_id": dag_id,
-            "is_running": self.riverflow.is_running(dag_id),
-            "stats": stats,
-        }
+        is_running = self.riverflow.is_running(dag_id)
+        return dag_to_model(dag, is_running, stats)
 
-    async def get_dag_graph(self, dag_id: str) -> Dict[str, Any]:
+    async def get_dag_graph(self, dag_id: str) -> DAGGraphModel:
         """Get DAG graph topology and latest task states for UI rendering."""
         dag = self.riverflow.get_dag(dag_id)
         if dag is None:
@@ -129,114 +130,46 @@ class RiverFlowAPI:
             if history:
                 latest_run = history[0]
 
-        latest_task_states = {}
-        if latest_run is not None:
-            latest_task_states = {
-                task_id: state.value for task_id, state in latest_run.task_states.items()
-            }
-
-        nodes = []
-        edges = []
-        for task_id, task in dag.tasks.items():
-            nodes.append(
-                {
-                    "id": task_id,
-                    "label": task_id,
-                    "state": latest_task_states.get(task_id, "none"),
-                    "trigger_rule": task.trigger_rule.value,
-                    "retries": task.retries,
-                }
-            )
-
-            for upstream in task.upstream_tasks:
-                edges.append(
-                    {
-                        "id": f"{upstream.task_id}->{task_id}",
-                        "source": upstream.task_id,
-                        "target": task_id,
-                    }
-                )
-
-        return {
-            "timestamp": datetime.now().isoformat(),
-            "dag_id": dag_id,
-            "is_running": self.riverflow.is_running(dag_id),
-            "run_id": latest_run.run_id if latest_run else None,
-            "nodes": nodes,
-            "edges": edges,
-        }
+        is_running = self.riverflow.is_running(dag_id)
+        return dag_to_graph(dag, is_running, latest_run)
 
     async def get_history(
         self, limit: int = 100, dag_id: Optional[str] = None
-    ) -> Dict[str, Any]:
+    ) -> list[DAGRunModel]:
         """Get DAG execution history"""
         history = self.riverflow.get_history(limit=limit)
 
         if dag_id:
             history = [run for run in history if run.dag_id == dag_id]
 
-        return {
-            "timestamp": datetime.now().isoformat(),
-            "total": len(history),
-            "runs": [self._serialize_run(run) for run in history],
-        }
+        return [run_to_model(run) for run in history]
 
-    async def trigger_dag(self, dag_id: str) -> Dict[str, Any]:
+    async def trigger_dag(self, dag_id: str) -> DAGRunModel:
         """Trigger a DAG execution"""
         try:
             result = await self.riverflow.trigger(dag_id)
-            return {
-                "timestamp": datetime.now().isoformat(),
-                "success": True,
-                "dag_id": dag_id,
-                "run_id": result.run_id,
-                "state": result.state.value,
-            }
+            return run_to_model(result)
         except Exception as e:
             self.logger.error(f"Failed to trigger DAG {dag_id}: {e}")
-            return {
-                "timestamp": datetime.now().isoformat(),
-                "success": False,
-                "dag_id": dag_id,
-                "error": str(e),
-            }
+            raise HTTPException(status_code=500, detail=str(e))
 
-    async def trigger_task(self, dag_id: str, task_id: str) -> Dict[str, Any]:
+    async def trigger_task(self, dag_id: str, task_id: str) -> DAGRunModel:
         """Trigger a single task within a DAG (ignoring dependencies)"""
         try:
             result = await self.riverflow.trigger_task(dag_id, task_id)
-            return {
-                "timestamp": datetime.now().isoformat(),
-                "success": True,
-                "dag_id": dag_id,
-                "task_id": task_id,
-                "run_id": result.run_id,
-                "state": result.state.value,
-            }
+            return run_to_model(result)
         except Exception as e:
             self.logger.error(
                 f"Failed to trigger task {task_id} in DAG {dag_id}: {e}"
             )
-            return {
-                "timestamp": datetime.now().isoformat(),
-                "success": False,
-                "dag_id": dag_id,
-                "task_id": task_id,
-                "error": str(e),
-            }
+            raise HTTPException(status_code=500, detail=str(e))
 
     async def get_run_logs(
         self, run_id: str, task_id: Optional[str] = None
-    ) -> Dict[str, Any]:
+    ) -> TaskLogsModel:
         """Get captured task logs for a run"""
-        logs = self.riverflow.get_task_logs(run_id, task_id)
-        return {
-            "timestamp": datetime.now().isoformat(),
-            "run_id": run_id,
-            "task_id": task_id,
-            "total": len(logs),
-            "logs": logs,
-        }
+        raw_logs = self.riverflow.get_task_logs(run_id, task_id)
+        return logs_to_model(run_id, task_id, raw_logs)
 
     # ========== WebSocket Handler ==========
 
@@ -297,7 +230,7 @@ class RiverFlowAPI:
                     "timestamp": datetime.now().isoformat(),
                     "data": {
                         "total_runs": len(history),
-                        "runs": [self._serialize_run(run) for run in history],
+                        "runs": [run_to_model(run).model_dump(mode="json") for run in history],
                     },
                 }
             )
@@ -312,7 +245,7 @@ class RiverFlowAPI:
                     "timestamp": datetime.now().isoformat(),
                     "data": {
                         "running_dags": [
-                            self._serialize_run(run) for run in current_runs.values()
+                            run_to_model(run).model_dump(mode="json") for run in current_runs.values()
                         ]
                     },
                 }
@@ -373,28 +306,6 @@ class RiverFlowAPI:
                     }
                 )
 
-    # ========== Serialization Helpers ==========
-
-    def _serialize_run(self, run: DAGRunHistory) -> Dict[str, Any]:
-        """Serialize a DAG run history object"""
-        return {
-            "dag_id": run.dag_id,
-            "run_id": run.run_id,
-            "state": run.state.value,
-            "start_time": run.start_time.isoformat() if run.start_time else None,
-            "end_time": run.end_time.isoformat() if run.end_time else None,
-            "task_states": {
-                task_id: state.value for task_id, state in run.task_states.items()
-            },
-            "error": run.error,
-            "duration_seconds": (
-                (run.end_time - run.start_time).total_seconds()
-                if run.start_time and run.end_time
-                else None
-            ),
-        }
-
-
 def create_riverflow_api(riverflow: Optional[Riverflow] = None) -> FastAPI:
     """
     Create a FastAPI application with RiverFlow monitoring endpoints.
@@ -445,7 +356,6 @@ def create_riverflow_api(riverflow: Optional[Riverflow] = None) -> FastAPI:
 
     # Register REST endpoints
     app.get("/")(api.root)
-    app.get("/ui", response_class=HTMLResponse)(api.get_ui_index)
     app.get("/api/status")(api.get_status)
     app.get("/api/dags")(api.get_dags)
     app.get("/api/dags/{dag_id}")(api.get_dag)
@@ -458,8 +368,85 @@ def create_riverflow_api(riverflow: Optional[Riverflow] = None) -> FastAPI:
     # Register WebSocket endpoint
     app.websocket("/ws")(api.websocket_handler)
 
-    # Mount static files for UI assets (JS modules, CSS)
+    # ── HTMX UI routes ──────────────────────────────────
+    from fastapi import Request
+    from .templates import templates
+
+    @app.get("/ui", response_class=HTMLResponse)
+    async def ui_index(request: Request):
+        return templates.TemplateResponse("base.html", {"request": request})
+
+    @app.get("/ui/dags/{dag_id}", response_class=HTMLResponse)
+    async def ui_dag_detail(request: Request, dag_id: str):
+        dag = riverflow.get_dag(dag_id)
+        if dag is None:
+            raise HTTPException(status_code=404, detail=f"Unknown DAG: {dag_id}")
+        stats = riverflow.get_dag_stats(dag_id)
+        is_running = riverflow.is_running(dag_id)
+        dag_model = dag_to_model(dag, is_running, stats)
+        return templates.TemplateResponse(
+            "dag_detail.html", {"request": request, "dag": dag_model}
+        )
+
+    @app.get("/ui/partials/dag-list", response_class=HTMLResponse)
+    async def ui_partial_dag_list(request: Request):
+        dags = []
+        for did in riverflow.get_registered_dags():
+            is_running = riverflow.is_running(did)
+            try:
+                stats = riverflow.get_dag_stats(did)
+            except Exception:
+                stats = {}
+            dags.append(dag_to_summary(did, is_running, stats))
+        return templates.TemplateResponse(
+            "partials/_dag_list.html", {"request": request, "dags": dags}
+        )
+
+    @app.get("/ui/partials/dag-stats/{dag_id}", response_class=HTMLResponse)
+    async def ui_partial_dag_stats(request: Request, dag_id: str):
+        dag = riverflow.get_dag(dag_id)
+        if dag is None:
+            raise HTTPException(status_code=404, detail=f"Unknown DAG: {dag_id}")
+        stats = riverflow.get_dag_stats(dag_id)
+        is_running = riverflow.is_running(dag_id)
+        dag_model = dag_to_model(dag, is_running, stats)
+        return templates.TemplateResponse(
+            "partials/_dag_stats.html", {"request": request, "dag": dag_model}
+        )
+
+    @app.get("/ui/partials/dag-graph/{dag_id}", response_class=HTMLResponse)
+    async def ui_partial_dag_graph(request: Request, dag_id: str):
+        dag = riverflow.get_dag(dag_id)
+        if dag is None:
+            raise HTTPException(status_code=404, detail=f"Unknown DAG: {dag_id}")
+        latest_run = None
+        current = riverflow.get_current_runs().get(dag_id)
+        if current:
+            latest_run = current
+        else:
+            history = riverflow.get_history(dag_id=dag_id, limit=1)
+            if history:
+                latest_run = history[0]
+        is_running = riverflow.is_running(dag_id)
+        graph = dag_to_graph(dag, is_running, latest_run)
+        return templates.TemplateResponse(
+            "partials/_dag_graph.html", {"request": request, "graph": graph}
+        )
+
+    @app.get("/ui/partials/dag-history/{dag_id}", response_class=HTMLResponse)
+    async def ui_partial_dag_history(request: Request, dag_id: str):
+        history = riverflow.get_history(dag_id=dag_id, limit=50)
+        runs = [run_to_model(run) for run in history]
+        return templates.TemplateResponse(
+            "partials/_dag_history.html", {"request": request, "runs": runs}
+        )
+
+    # Mount static files for UI assets (CSS, JS, HTMX)
     # This must come after explicit routes so they take priority
-    app.mount("/ui", StaticFiles(directory=str(UI_DIR)), name="ui_static")
+    STATIC_DIR = Path(__file__).resolve().parent / "ui" / "static"
+    app.mount("/ui/static", StaticFiles(directory=str(STATIC_DIR)), name="ui_static_files")
+
+    # Keep legacy static mount for old JS UI during transition
+    app.mount("/ui/legacy", StaticFiles(directory=str(UI_DIR)), name="ui_legacy")
 
     return app

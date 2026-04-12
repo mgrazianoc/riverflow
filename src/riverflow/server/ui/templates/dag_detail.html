@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}{{ dag.dag_id }} — Riverflow{% endblock %}
+{% block content %}
+<div class="dag-detail">
+  <header class="dag-header">
+    <h1>{{ dag.dag_id }}</h1>
+    {% if dag.description %}
+      <p class="dag-description">{{ dag.description }}</p>
+    {% endif %}
+
+    <div class="dag-actions">
+      <button class="btn btn-primary"
+              hx-put="/api/dags/{{ dag.dag_id }}/trigger"
+              hx-swap="none"
+              {% if dag.is_running %}disabled{% endif %}>
+        {% if dag.is_running %}Running…{% else %}Trigger DAG{% endif %}
+      </button>
+    </div>
+  </header>
+
+  {# ── Stats bar ── #}
+  <div class="stats-bar"
+       hx-get="/ui/partials/dag-stats/{{ dag.dag_id }}"
+       hx-trigger="load, dag-updated from:body"
+       hx-swap="outerHTML">
+    {% include "partials/_dag_stats.html" %}
+  </div>
+
+  {# ── Graph ── #}
+  <section class="dag-graph-section">
+    <h2>Task Graph</h2>
+    <div class="dag-graph"
+         id="dag-graph"
+         hx-get="/ui/partials/dag-graph/{{ dag.dag_id }}"
+         hx-trigger="load, dag-updated from:body"
+         hx-swap="innerHTML">
+    </div>
+  </section>
+
+  {# ── History table ── #}
+  <section class="history-section">
+    <h2>Run History</h2>
+    <div hx-get="/ui/partials/dag-history/{{ dag.dag_id }}"
+         hx-trigger="load, dag-updated from:body"
+         hx-swap="innerHTML"
+         id="history-table">
+    </div>
+  </section>
+</div>
+{% endblock %}

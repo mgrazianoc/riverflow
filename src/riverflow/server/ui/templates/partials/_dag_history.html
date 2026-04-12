@@ -1,0 +1,31 @@
+{# Partial: DAG run history table — loaded via HTMX #}
+{% if runs %}
+<table class="history-table">
+  <thead>
+    <tr>
+      <th>Run ID</th>
+      <th>State</th>
+      <th>Started</th>
+      <th>Duration</th>
+      <th>Tasks</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for run in runs %}
+    <tr class="history-row state-{{ run.state.value }}">
+      <td class="run-id">{{ run.run_id }}</td>
+      <td><span class="dag-badge state-{{ run.state.value }}">{{ run.state.value }}</span></td>
+      <td>{{ run.start_time.strftime('%H:%M:%S') if run.start_time else '—' }}</td>
+      <td>{{ "%.1f"|format(run.duration_seconds) ~ 's' if run.duration_seconds else '—' }}</td>
+      <td class="task-states">
+        {% for tid, tstate in run.task_states.items() %}
+        <span class="task-pip state-{{ tstate.value }}" title="{{ tid }}: {{ tstate.value }}"></span>
+        {% endfor %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty-state-small">No runs yet.</p>
+{% endif %}

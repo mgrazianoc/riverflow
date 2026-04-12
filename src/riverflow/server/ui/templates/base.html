@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}Riverflow{% endblock %}</title>
+  <link rel="stylesheet" href="/ui/static/riverflow.css" />
+  <script src="/ui/static/htmx.min.js"></script>
+  <script src="/ui/static/riverflow.js" defer></script>
+</head>
+<body hx-boost="true">
+  <div class="app">
+    {# ── Sidebar ── #}
+    <aside class="sidebar">
+      <div class="sidebar-head">
+        <div class="brand">
+          <span class="brand-icon">~</span>
+          <div>
+            <div class="brand-name">Riverflow</div>
+            <div class="brand-sub">DAG Studio</div>
+          </div>
+        </div>
+        <span id="ws-badge" class="ws-badge offline">offline</span>
+      </div>
+
+      <nav class="sidebar-nav" hx-get="/ui/partials/dag-list"
+           hx-trigger="load, dag-updated from:body"
+           hx-target="#dag-list"
+           hx-swap="innerHTML">
+        <ul id="dag-list" class="dag-list"></ul>
+      </nav>
+    </aside>
+
+    {# ── Main Content ── #}
+    <main class="main-content" id="main-content">
+      {% block content %}
+      <div class="empty-state">
+        <h2>Select a DAG</h2>
+        <p>Choose a DAG from the sidebar to view details.</p>
+      </div>
+      {% endblock %}
+    </main>
+  </div>
+</body>
+</html>

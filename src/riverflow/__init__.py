@@ -17,12 +17,14 @@ Usage:
 """
 
 from . import core
+from . import models
 from . import server
 
 __version__ = "0.1.1"
 
 __all__ = [
     "core",
+    "models",
     "server",
     "__version__",
 ]

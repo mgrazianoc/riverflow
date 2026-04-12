@@ -1,0 +1,26 @@
+{# Partial: DAG stats bar — reloaded via HTMX #}
+<div class="stats-bar"
+     hx-get="/ui/partials/dag-stats/{{ dag.dag_id }}"
+     hx-trigger="dag-updated from:body"
+     hx-swap="outerHTML">
+  <div class="stat-card">
+    <span class="stat-value">{{ dag.total_runs }}</span>
+    <span class="stat-label">Total Runs</span>
+  </div>
+  <div class="stat-card stat-ok">
+    <span class="stat-value">{{ dag.success_count }}</span>
+    <span class="stat-label">Succeeded</span>
+  </div>
+  <div class="stat-card stat-fail">
+    <span class="stat-value">{{ dag.failed_count }}</span>
+    <span class="stat-label">Failed</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-value">{{ "%.1f"|format(dag.success_rate) }}%</span>
+    <span class="stat-label">Success Rate</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-value">{{ "%.1f"|format(dag.avg_duration_seconds) }}s</span>
+    <span class="stat-label">Avg Duration</span>
+  </div>
+</div>

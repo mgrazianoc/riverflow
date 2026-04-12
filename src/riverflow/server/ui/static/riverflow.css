@@ -1,0 +1,226 @@
+/* ===== Riverflow DAG Studio — HTMX Edition ===== */
+
+:root {
+  --bg: #f5f7fa;
+  --ink: #0f172a;
+  --muted: #64748b;
+  --subtle: #94a3b8;
+  --line: #e2e8f0;
+  --panel: #ffffff;
+  --brand: #0d9488;
+  --brand-soft: #ccfbf1;
+  --accent: #0891b2;
+  --ok: #16a34a;
+  --ok-bg: #dcfce7;
+  --fail: #dc2626;
+  --fail-bg: #fee2e2;
+  --run: #d97706;
+  --run-bg: #fef3c7;
+  --idle-bg: #f1f5f9;
+  --radius: 10px;
+  --radius-lg: 14px;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-lg: 0 4px 12px rgba(0,0,0,0.08);
+  --font: "Inter", "SF Pro Display", "Segoe UI", system-ui, sans-serif;
+  --mono: "SF Mono", "Fira Code", "Consolas", monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; }
+html, body { width: 100%; height: 100%; }
+
+body {
+  font-family: var(--font);
+  font-size: 0.875rem;
+  color: var(--ink);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ===== Layout ===== */
+
+.app {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  height: 100vh;
+}
+
+/* ===== Sidebar ===== */
+
+.sidebar {
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sidebar-head {
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand-icon { font-size: 1.4rem; color: var(--brand); font-weight: 700; }
+.brand-name { font-weight: 700; font-size: 0.95rem; letter-spacing: -0.01em; }
+.brand-sub { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; }
+
+.ws-badge {
+  font-size: 0.7rem; font-weight: 600; padding: 3px 8px;
+  border-radius: 999px; white-space: nowrap;
+}
+.ws-badge.online { background: var(--ok-bg); color: var(--ok); }
+.ws-badge.offline { background: var(--fail-bg); color: var(--fail); }
+
+/* ===== DAG List ===== */
+
+.dag-list { list-style: none; padding: 8px; overflow-y: auto; flex: 1; }
+
+.dag-list-item {
+  border-radius: var(--radius);
+  margin-bottom: 4px;
+  transition: background 0.1s;
+}
+.dag-list-item:hover { background: var(--idle-bg); }
+
+.dag-link {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 12px; text-decoration: none; color: var(--ink);
+}
+
+.dag-id { font-weight: 600; font-size: 0.85rem; }
+
+.dag-mini-stats {
+  display: flex; gap: 10px; padding: 0 12px 8px; font-size: 0.75rem; color: var(--muted);
+}
+
+.dag-list-empty { padding: 24px; text-align: center; color: var(--muted); }
+
+/* ===== Badges ===== */
+
+.dag-badge {
+  font-size: 0.7rem; font-weight: 600; padding: 2px 8px; border-radius: 999px;
+}
+.state-idle, .state-none { background: var(--idle-bg); color: var(--muted); }
+.state-running { background: var(--run-bg); color: var(--run); }
+.state-success { background: var(--ok-bg); color: var(--ok); }
+.state-failed { background: var(--fail-bg); color: var(--fail); }
+.state-skipped { background: #ede9fe; color: #7c3aed; }
+.state-upstream_failed { background: #fef3c7; color: #b45309; }
+.state-timeout { background: #fee2e2; color: #b91c1c; }
+
+/* ===== Main Content ===== */
+
+.main-content {
+  padding: 24px 32px;
+  overflow-y: auto;
+}
+
+.empty-state {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  height: 100%; color: var(--muted); gap: 8px;
+}
+.empty-state h2 { font-size: 1.2rem; font-weight: 600; }
+.empty-state-small { color: var(--muted); text-align: center; padding: 24px; }
+
+/* ===== DAG Detail ===== */
+
+.dag-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 24px;
+}
+.dag-header h1 { font-size: 1.4rem; font-weight: 700; }
+.dag-description { color: var(--muted); font-size: 0.85rem; }
+
+.btn {
+  padding: 8px 16px; border: none; border-radius: var(--radius);
+  font: inherit; font-size: 0.8rem; font-weight: 600;
+  cursor: pointer; transition: all 0.15s ease;
+}
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-primary { background: var(--brand); color: white; }
+.btn-primary:hover:not(:disabled) { background: #0f766e; }
+
+/* ===== Stats Bar ===== */
+
+.stats-bar {
+  display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap;
+}
+
+.stat-card {
+  flex: 1; min-width: 120px;
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.stat-value { font-size: 1.3rem; font-weight: 700; }
+.stat-label { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.stat-ok .stat-value { color: var(--ok); }
+.stat-fail .stat-value { color: var(--fail); }
+
+/* ===== Graph ===== */
+
+.dag-graph-section { margin-bottom: 24px; }
+.dag-graph-section h2, .history-section h2 {
+  font-size: 1rem; font-weight: 600; margin-bottom: 12px;
+}
+
+.graph-container {
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: var(--radius-lg); padding: 24px;
+  display: flex; flex-wrap: wrap; gap: 16px; align-items: center;
+  position: relative; min-height: 120px;
+}
+
+.graph-node {
+  padding: 10px 16px; border-radius: var(--radius); border: 2px solid var(--line);
+  background: var(--panel); cursor: pointer; transition: all 0.15s;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+}
+.graph-node:hover { box-shadow: var(--shadow-lg); transform: translateY(-1px); }
+.graph-node.state-running { border-color: var(--run); background: var(--run-bg); }
+.graph-node.state-success { border-color: var(--ok); background: var(--ok-bg); }
+.graph-node.state-failed { border-color: var(--fail); background: var(--fail-bg); }
+
+.node-label { font-weight: 600; font-size: 0.8rem; }
+.node-state { font-size: 0.7rem; color: var(--muted); }
+
+/* ===== History Table ===== */
+
+.history-table {
+  width: 100%; border-collapse: collapse;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.history-table th {
+  text-align: left; padding: 10px 14px; font-size: 0.75rem;
+  text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--muted); background: var(--idle-bg); border-bottom: 1px solid var(--line);
+}
+
+.history-table td {
+  padding: 10px 14px; border-bottom: 1px solid var(--line); font-size: 0.82rem;
+}
+
+.run-id { font-family: var(--mono); font-size: 0.75rem; }
+
+.task-states { display: flex; gap: 3px; }
+.task-pip {
+  width: 10px; height: 10px; border-radius: 50%; display: inline-block;
+}
+.task-pip.state-none { background: var(--subtle); }
+.task-pip.state-running { background: var(--run); }
+.task-pip.state-success { background: var(--ok); }
+.task-pip.state-failed { background: var(--fail); }
+.task-pip.state-skipped { background: #8b5cf6; }
+.task-pip.state-upstream_failed { background: #f59e0b; }
+.task-pip.state-timeout { background: #ef4444; }
+
+/* ===== HTMX Indicators ===== */
+
+.htmx-indicator { opacity: 0; transition: opacity 0.3s; }
+.htmx-request .htmx-indicator { opacity: 1; }

@@ -1,0 +1,25 @@
+repos:
+  # TypeScript type checking (blocks commit if TS errors)
+  - repo: local
+    hooks:
+      - id: typecheck-ts
+        name: TypeScript type check
+        entry: bash -c 'cd ui-src && npx tsc --noEmit'
+        language: system
+        pass_filenames: false
+        files: 'ui-src/.*\.ts$'
+
+      - id: build-ui
+        name: Build UI bundle
+        entry: bash -c 'cd ui-src && npm run build'
+        language: system
+        pass_filenames: false
+        files: 'ui-src/.*\.ts$'
+
+  # Python formatting and linting
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.6
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format

@@ -1,0 +1,17 @@
+{
+  "name": "riverflow-ui",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Dev-only TypeScript build for Riverflow UI (not shipped to users)",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "esbuild src/riverflow.ts --bundle --minify --outfile=../src/riverflow/server/ui/static/riverflow.js --target=es2020",
+    "watch": "esbuild src/riverflow.ts --bundle --outfile=../src/riverflow/server/ui/static/riverflow.js --target=es2020 --watch",
+    "generate-types": "openapi-typescript http://localhost:8083/openapi.json -o src/types/api.d.ts"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.0",
+    "openapi-typescript": "^7.13.0",
+    "typescript": "~5.8.3"
+  }
+}

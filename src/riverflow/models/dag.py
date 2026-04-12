@@ -31,6 +31,7 @@ class DAGModel(BaseModel):
     failed_count: int = 0
     success_rate: float = 0.0
     avg_duration_seconds: float = 0.0
+    latest_run_id: Optional[str] = None
 
 
 class DAGNodeModel(BaseModel):

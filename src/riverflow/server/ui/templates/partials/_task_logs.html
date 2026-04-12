@@ -1,4 +1,4 @@
-{# Partial: Task logs viewer — loaded via HTMX into the log panel #}
+{# Partial: Task logs viewer — used in both the Logs tab and the slide-out panel #}
 <div class="log-viewer">
   <div class="log-header">
     <h3>
@@ -9,7 +9,7 @@
       {% endif %}
       <span class="log-meta">run {{ logs.run_id[:8] }}… · {{ logs.total }} entries</span>
     </h3>
-    <button class="btn btn-close" onclick="this.closest('.log-panel').classList.remove('open')">&times;</button>
+    <button class="btn btn-close log-panel-only" onclick="closeLogPanel()">&times;</button>
   </div>
 
   {% if logs.logs %}

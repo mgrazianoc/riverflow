@@ -8,18 +8,18 @@
   <script src="/ui/static/htmx.min.js"></script>
   <script src="/ui/static/riverflow.js" defer></script>
 </head>
-<body hx-boost="true">
+<body>
   <div class="app">
     {# ── Sidebar ── #}
     <aside class="sidebar">
       <div class="sidebar-head">
-        <div class="brand">
+        <a href="/ui" class="brand" hx-get="/ui" hx-target="#main-content" hx-select="#main-content > *" hx-push-url="true">
           <span class="brand-icon">~</span>
           <div>
             <div class="brand-name">Riverflow</div>
             <div class="brand-sub">DAG Studio</div>
           </div>
-        </div>
+        </a>
         <span id="ws-badge" class="ws-badge offline">offline</span>
       </div>
 
@@ -41,5 +41,65 @@
       {% endblock %}
     </main>
   </div>
+
+  {# ── Log panel + backdrop (persistent across navigation) ── #}
+  <div class="log-backdrop" id="log-backdrop" onclick="closeLogPanel()"></div>
+  <aside class="log-panel" id="log-panel">
+    <div id="log-panel-content"></div>
+  </aside>
+
+  <script>
+    // ── Log panel management ──
+    function openLogPanel(url) {
+      var panel = document.getElementById('log-panel');
+      var backdrop = document.getElementById('log-backdrop');
+      panel.classList.add('open');
+      backdrop.classList.add('open');
+      htmx.ajax('GET', url, '#log-panel-content').then(function() {
+        var entries = panel.querySelector('.log-entries');
+        if (entries) entries.scrollTop = entries.scrollHeight;
+      });
+    }
+
+    function closeLogPanel() {
+      document.getElementById('log-panel').classList.remove('open');
+      document.getElementById('log-backdrop').classList.remove('open');
+    }
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') closeLogPanel();
+    });
+
+    // ── Tab initialization (re-runs after HTMX swaps) ──
+    function initTabs() {
+      document.querySelectorAll('.tab-bar .tab').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          document.querySelectorAll('.tab-bar .tab').forEach(function(t) { t.classList.remove('active'); });
+          document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
+          btn.classList.add('active');
+          document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+        });
+      });
+    }
+    initTabs();
+
+    // Re-initialize tabs after HTMX content swaps
+    document.body.addEventListener('htmx:afterSettle', function() {
+      initTabs();
+      // Highlight active sidebar item based on current URL
+      var path = window.location.pathname;
+      document.querySelectorAll('.dag-list-item').forEach(function(item) {
+        item.classList.toggle('active', path === '/ui/dags/' + item.dataset.dagId);
+      });
+    });
+
+    // Highlight active sidebar on initial page load
+    document.addEventListener('DOMContentLoaded', function() {
+      var path = window.location.pathname;
+      document.querySelectorAll('.dag-list-item').forEach(function(item) {
+        item.classList.toggle('active', path === '/ui/dags/' + item.dataset.dagId);
+      });
+    });
+  </script>
 </body>
 </html>

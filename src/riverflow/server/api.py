@@ -383,7 +383,16 @@ def create_riverflow_api(riverflow: Optional[Riverflow] = None) -> FastAPI:
             raise HTTPException(status_code=404, detail=f"Unknown DAG: {dag_id}")
         stats = riverflow.get_dag_stats(dag_id)
         is_running = riverflow.is_running(dag_id)
-        dag_model = dag_to_model(dag, is_running, stats)
+        # Find the latest run ID for the Logs tab
+        latest_run_id = None
+        current = riverflow.get_current_runs().get(dag_id)
+        if current:
+            latest_run_id = current.run_id
+        else:
+            history = riverflow.get_history(dag_id=dag_id, limit=1)
+            if history:
+                latest_run_id = history[0].run_id
+        dag_model = dag_to_model(dag, is_running, stats, latest_run_id)
         return templates.TemplateResponse(
             request, "dag_detail.html", {"dag": dag_model}
         )

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ dag.dag_id }} — Riverflow{% endblock %}
 {% block content %}
-<div class="dag-detail">
+<div class="dag-detail" data-dag-id="{{ dag.dag_id }}">
   <header class="dag-header">
     <div>
       <h1>{{ dag.dag_id }}</h1>
@@ -44,6 +44,7 @@
            hx-get="/ui/partials/dag-graph/{{ dag.dag_id }}"
            hx-trigger="load, dag-updated from:body"
            hx-swap="innerHTML">
+        <div class="loading-indicator">Loading graph…</div>
       </div>
     </section>
 
@@ -53,37 +54,23 @@
            hx-trigger="load, dag-updated from:body"
            hx-swap="innerHTML"
            id="history-table">
+        <div class="loading-indicator">Loading history…</div>
       </div>
     </section>
 
-    {# ── Logs tab (all logs for the DAG's latest run) ── #}
+    {# ── Logs tab (latest run) ── #}
     <section class="tab-panel" id="tab-logs">
-      <p class="empty-state-small">Select a run or task to view logs.</p>
+      {% if dag.latest_run_id %}
+      <div hx-get="/ui/partials/task-logs/{{ dag.latest_run_id }}"
+           hx-trigger="load"
+           hx-swap="innerHTML"
+           id="logs-inline">
+        <div class="loading-indicator">Loading logs…</div>
+      </div>
+      {% else %}
+      <p class="empty-state-small">No runs yet — trigger the DAG to see logs here.</p>
+      {% endif %}
     </section>
   </div>
-
-  {# ── Slide-out log panel (triggered from graph nodes or history rows) ── #}
-  <aside class="log-panel" id="log-panel">
-    <div id="log-panel-content"></div>
-  </aside>
 </div>
-
-<script>
-  // Tab switching
-  document.querySelectorAll('.tab-bar .tab').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.tab-bar .tab').forEach(t => t.classList.remove('active'));
-      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-      btn.classList.add('active');
-      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
-    });
-  });
-
-  // Open log panel helper
-  function openLogPanel(url) {
-    const panel = document.getElementById('log-panel');
-    panel.classList.add('open');
-    htmx.ajax('GET', url, '#log-panel-content');
-  }
-</script>
 {% endblock %}

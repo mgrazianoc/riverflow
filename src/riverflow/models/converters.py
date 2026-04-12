@@ -55,7 +55,9 @@ def dag_to_summary(dag_id: str, is_running: bool, stats: dict) -> DAGSummaryMode
     )
 
 
-def dag_to_model(dag: DAG, is_running: bool, stats: dict) -> DAGModel:
+def dag_to_model(
+    dag: DAG, is_running: bool, stats: dict, latest_run_id: Optional[str] = None
+) -> DAGModel:
     return DAGModel(
         dag_id=dag.dag_id,
         description=dag.description,
@@ -67,6 +69,7 @@ def dag_to_model(dag: DAG, is_running: bool, stats: dict) -> DAGModel:
         failed_count=stats.get("failed_count", 0),
         success_rate=stats.get("success_rate", 0.0),
         avg_duration_seconds=stats.get("avg_duration_seconds", 0.0),
+        latest_run_id=latest_run_id,
     )
 
 

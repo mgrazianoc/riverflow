@@ -8,19 +8,28 @@
       <th>Started</th>
       <th>Duration</th>
       <th>Tasks</th>
+      <th>Logs</th>
     </tr>
   </thead>
   <tbody>
     {% for run in runs %}
     <tr class="history-row state-{{ run.state.value }}">
-      <td class="run-id">{{ run.run_id }}</td>
+      <td class="run-id">{{ run.run_id[:8] }}…</td>
       <td><span class="dag-badge state-{{ run.state.value }}">{{ run.state.value }}</span></td>
       <td>{{ run.start_time.strftime('%H:%M:%S') if run.start_time else '—' }}</td>
       <td>{{ "%.1f"|format(run.duration_seconds) ~ 's' if run.duration_seconds else '—' }}</td>
       <td class="task-states">
         {% for tid, tstate in run.task_states.items() %}
-        <span class="task-pip state-{{ tstate.value }}" title="{{ tid }}: {{ tstate.value }}"></span>
+        <span class="task-pip state-{{ tstate.value }}"
+              title="{{ tid }}: {{ tstate.value }}"
+              onclick="openLogPanel('/ui/partials/task-logs/{{ run.run_id }}?task_id={{ tid }}')"
+              style="cursor:pointer"></span>
         {% endfor %}
+      </td>
+      <td>
+        <button class="btn btn-sm"
+                onclick="openLogPanel('/ui/partials/task-logs/{{ run.run_id }}')"
+                title="View all logs for this run">View</button>
       </td>
     </tr>
     {% endfor %}

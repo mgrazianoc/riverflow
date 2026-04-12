@@ -3,10 +3,12 @@
 {% block content %}
 <div class="dag-detail">
   <header class="dag-header">
-    <h1>{{ dag.dag_id }}</h1>
-    {% if dag.description %}
-      <p class="dag-description">{{ dag.description }}</p>
-    {% endif %}
+    <div>
+      <h1>{{ dag.dag_id }}</h1>
+      {% if dag.description %}
+        <p class="dag-description">{{ dag.description }}</p>
+      {% endif %}
+    </div>
 
     <div class="dag-actions">
       <button class="btn btn-primary"
@@ -26,25 +28,62 @@
     {% include "partials/_dag_stats.html" %}
   </div>
 
-  {# ── Graph ── #}
-  <section class="dag-graph-section">
-    <h2>Task Graph</h2>
-    <div class="dag-graph"
-         id="dag-graph"
-         hx-get="/ui/partials/dag-graph/{{ dag.dag_id }}"
-         hx-trigger="load, dag-updated from:body"
-         hx-swap="innerHTML">
-    </div>
-  </section>
+  {# ── Tab bar ── #}
+  <div class="tab-bar">
+    <button class="tab active" data-tab="graph">Graph</button>
+    <button class="tab" data-tab="history">History</button>
+    <button class="tab" data-tab="logs">Logs</button>
+  </div>
 
-  {# ── History table ── #}
-  <section class="history-section">
-    <h2>Run History</h2>
-    <div hx-get="/ui/partials/dag-history/{{ dag.dag_id }}"
-         hx-trigger="load, dag-updated from:body"
-         hx-swap="innerHTML"
-         id="history-table">
-    </div>
-  </section>
+  {# ── Tab panels ── #}
+  <div class="tab-panels">
+    {# ── Graph tab ── #}
+    <section class="tab-panel active" id="tab-graph">
+      <div class="dag-graph"
+           id="dag-graph"
+           hx-get="/ui/partials/dag-graph/{{ dag.dag_id }}"
+           hx-trigger="load, dag-updated from:body"
+           hx-swap="innerHTML">
+      </div>
+    </section>
+
+    {# ── History tab ── #}
+    <section class="tab-panel" id="tab-history">
+      <div hx-get="/ui/partials/dag-history/{{ dag.dag_id }}"
+           hx-trigger="load, dag-updated from:body"
+           hx-swap="innerHTML"
+           id="history-table">
+      </div>
+    </section>
+
+    {# ── Logs tab (all logs for the DAG's latest run) ── #}
+    <section class="tab-panel" id="tab-logs">
+      <p class="empty-state-small">Select a run or task to view logs.</p>
+    </section>
+  </div>
+
+  {# ── Slide-out log panel (triggered from graph nodes or history rows) ── #}
+  <aside class="log-panel" id="log-panel">
+    <div id="log-panel-content"></div>
+  </aside>
 </div>
+
+<script>
+  // Tab switching
+  document.querySelectorAll('.tab-bar .tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-bar .tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    });
+  });
+
+  // Open log panel helper
+  function openLogPanel(url) {
+    const panel = document.getElementById('log-panel');
+    panel.classList.add('open');
+    htmx.ajax('GET', url, '#log-panel-content');
+  }
+</script>
 {% endblock %}

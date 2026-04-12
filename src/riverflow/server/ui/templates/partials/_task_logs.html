@@ -1,0 +1,29 @@
+{# Partial: Task logs viewer — loaded via HTMX into the log panel #}
+<div class="log-viewer">
+  <div class="log-header">
+    <h3>
+      {% if logs.task_id %}
+        Logs: <code>{{ logs.task_id }}</code>
+      {% else %}
+        All Logs
+      {% endif %}
+      <span class="log-meta">run {{ logs.run_id[:8] }}… · {{ logs.total }} entries</span>
+    </h3>
+    <button class="btn btn-close" onclick="this.closest('.log-panel').classList.remove('open')">&times;</button>
+  </div>
+
+  {% if logs.logs %}
+  <div class="log-entries">
+    {% for entry in logs.logs %}
+    <div class="log-line level-{{ entry.level | lower }}">
+      <span class="log-ts">{{ entry.timestamp }}</span>
+      <span class="log-level">{{ entry.level }}</span>
+      <span class="log-task">{{ entry.task_id }}</span>
+      <span class="log-msg">{{ entry.message }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="empty-state-small">No logs captured for this run.</p>
+  {% endif %}
+</div>

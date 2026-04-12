@@ -441,6 +441,16 @@ def create_riverflow_api(riverflow: Optional[Riverflow] = None) -> FastAPI:
             request, "partials/_dag_history.html", {"runs": runs}
         )
 
+    @app.get("/ui/partials/task-logs/{run_id}", response_class=HTMLResponse)
+    async def ui_partial_task_logs(
+        request: Request, run_id: str, task_id: Optional[str] = None
+    ):
+        raw_logs = riverflow.get_task_logs(run_id, task_id)
+        logs_model = logs_to_model(run_id, task_id, raw_logs)
+        return templates.TemplateResponse(
+            request, "partials/_task_logs.html", {"logs": logs_model}
+        )
+
     # Mount static files for UI assets (CSS, JS, HTMX)
     # This must come after explicit routes so they take priority
     STATIC_DIR = Path(__file__).resolve().parent / "ui" / "static"

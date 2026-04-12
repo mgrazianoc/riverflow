@@ -2,16 +2,21 @@
 <div class="graph-container" data-dag-id="{{ graph.dag_id }}">
   {% for node in graph.nodes %}
   <div class="graph-node state-{{ node.state.value }}"
-       data-task-id="{{ node.id }}"
-       hx-put="/api/dags/{{ graph.dag_id }}/tasks/{{ node.id }}/trigger"
-       hx-swap="none"
-       title="Click to trigger {{ node.id }}">
+       data-task-id="{{ node.id }}">
     <span class="node-label">{{ node.label }}</span>
     <span class="node-state">{{ node.state.value }}</span>
+    <div class="node-actions">
+      <button class="node-btn" title="Trigger task"
+              hx-put="/api/dags/{{ graph.dag_id }}/tasks/{{ node.id }}/trigger"
+              hx-swap="none">&#x25B6;</button>
+      <button class="node-btn" title="View logs"
+              onclick="openLogPanel('/ui/partials/task-logs/{{ graph.run_id }}?task_id={{ node.id }}')"
+              {% if not graph.run_id %}disabled{% endif %}>&#x1F4CB;</button>
+    </div>
   </div>
   {% endfor %}
 
-  {# Edge data for JS rendering (minimal JS) #}
+  {# Edge data for JS rendering #}
   <script type="application/json" id="graph-edges">
     [{% for edge in graph.edges %}{"source":"{{ edge.source }}","target":"{{ edge.target }}"}{% if not loop.last %},{% endif %}{% endfor %}]
   </script>

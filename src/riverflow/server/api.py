@@ -374,7 +374,7 @@ def create_riverflow_api(riverflow: Optional[Riverflow] = None) -> FastAPI:
 
     @app.get("/ui", response_class=HTMLResponse)
     async def ui_index(request: Request):
-        return templates.TemplateResponse("base.html", {"request": request})
+        return templates.TemplateResponse(request, "base.html")
 
     @app.get("/ui/dags/{dag_id}", response_class=HTMLResponse)
     async def ui_dag_detail(request: Request, dag_id: str):
@@ -385,7 +385,7 @@ def create_riverflow_api(riverflow: Optional[Riverflow] = None) -> FastAPI:
         is_running = riverflow.is_running(dag_id)
         dag_model = dag_to_model(dag, is_running, stats)
         return templates.TemplateResponse(
-            "dag_detail.html", {"request": request, "dag": dag_model}
+            request, "dag_detail.html", {"dag": dag_model}
         )
 
     @app.get("/ui/partials/dag-list", response_class=HTMLResponse)
@@ -399,7 +399,7 @@ def create_riverflow_api(riverflow: Optional[Riverflow] = None) -> FastAPI:
                 stats = {}
             dags.append(dag_to_summary(did, is_running, stats))
         return templates.TemplateResponse(
-            "partials/_dag_list.html", {"request": request, "dags": dags}
+            request, "partials/_dag_list.html", {"dags": dags}
         )
 
     @app.get("/ui/partials/dag-stats/{dag_id}", response_class=HTMLResponse)
@@ -411,7 +411,7 @@ def create_riverflow_api(riverflow: Optional[Riverflow] = None) -> FastAPI:
         is_running = riverflow.is_running(dag_id)
         dag_model = dag_to_model(dag, is_running, stats)
         return templates.TemplateResponse(
-            "partials/_dag_stats.html", {"request": request, "dag": dag_model}
+            request, "partials/_dag_stats.html", {"dag": dag_model}
         )
 
     @app.get("/ui/partials/dag-graph/{dag_id}", response_class=HTMLResponse)
@@ -430,7 +430,7 @@ def create_riverflow_api(riverflow: Optional[Riverflow] = None) -> FastAPI:
         is_running = riverflow.is_running(dag_id)
         graph = dag_to_graph(dag, is_running, latest_run)
         return templates.TemplateResponse(
-            "partials/_dag_graph.html", {"request": request, "graph": graph}
+            request, "partials/_dag_graph.html", {"graph": graph}
         )
 
     @app.get("/ui/partials/dag-history/{dag_id}", response_class=HTMLResponse)
@@ -438,7 +438,7 @@ def create_riverflow_api(riverflow: Optional[Riverflow] = None) -> FastAPI:
         history = riverflow.get_history(dag_id=dag_id, limit=50)
         runs = [run_to_model(run) for run in history]
         return templates.TemplateResponse(
-            "partials/_dag_history.html", {"request": request, "runs": runs}
+            request, "partials/_dag_history.html", {"runs": runs}
         )
 
     # Mount static files for UI assets (CSS, JS, HTMX)

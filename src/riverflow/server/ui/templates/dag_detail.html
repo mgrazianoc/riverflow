@@ -58,18 +58,14 @@
       </div>
     </section>
 
-    {# ── Logs tab (latest run) ── #}
+    {# ── Logs tab (latest run — refreshes dynamically) ── #}
     <section class="tab-panel" id="tab-logs">
-      {% if dag.latest_run_id %}
-      <div hx-get="/ui/partials/task-logs/{{ dag.latest_run_id }}"
-           hx-trigger="load"
+      <div hx-get="/ui/partials/dag-logs/{{ dag.dag_id }}"
+           hx-trigger="load, dag-updated from:body"
            hx-swap="innerHTML"
            id="logs-inline">
         <div class="loading-indicator">Loading logs…</div>
       </div>
-      {% else %}
-      <p class="empty-state-small">No runs yet — trigger the DAG to see logs here.</p>
-      {% endif %}
     </section>
   </div>
 </div>

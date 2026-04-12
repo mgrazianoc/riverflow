@@ -460,6 +460,27 @@ def create_riverflow_api(riverflow: Optional[Riverflow] = None) -> FastAPI:
             request, "partials/_task_logs.html", {"logs": logs_model}
         )
 
+    @app.get("/ui/partials/dag-logs/{dag_id}", response_class=HTMLResponse)
+    async def ui_partial_dag_logs(request: Request, dag_id: str):
+        """Resolve latest run for a DAG and return its logs."""
+        run_id = None
+        current = riverflow.get_current_runs().get(dag_id)
+        if current:
+            run_id = current.run_id
+        else:
+            history = riverflow.get_history(dag_id=dag_id, limit=1)
+            if history:
+                run_id = history[0].run_id
+        if not run_id:
+            return HTMLResponse(
+                '<p class="empty-state-small">No runs yet — trigger the DAG to see logs here.</p>'
+            )
+        raw_logs = riverflow.get_task_logs(run_id)
+        logs_model = logs_to_model(run_id, None, raw_logs)
+        return templates.TemplateResponse(
+            request, "partials/_task_logs.html", {"logs": logs_model}
+        )
+
     # Mount static files for UI assets (CSS, JS, HTMX)
     # This must come after explicit routes so they take priority
     STATIC_DIR = Path(__file__).resolve().parent / "ui" / "static"

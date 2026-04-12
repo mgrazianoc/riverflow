@@ -6,12 +6,16 @@
     <span class="node-label">{{ node.label }}</span>
     <span class="node-state">{{ node.state.value }}</span>
     <div class="node-actions">
-      <button class="node-btn" title="Trigger task"
+      <button class="node-btn" title="Trigger {{ node.id }}"
               hx-put="/api/dags/{{ graph.dag_id }}/tasks/{{ node.id }}/trigger"
-              hx-swap="none">&#x25B6;</button>
-      <button class="node-btn" title="View logs"
+              hx-swap="none">
+        <svg width="10" height="10" viewBox="0 0 10 10"><polygon points="1,0 9,5 1,10" fill="currentColor"/></svg>
+      </button>
+      <button class="node-btn" title="View logs for {{ node.id }}"
               onclick="openLogPanel('/ui/partials/task-logs/{{ graph.run_id }}?task_id={{ node.id }}')"
-              {% if not graph.run_id %}disabled{% endif %}>&#x1F4CB;</button>
+              {% if not graph.run_id %}disabled{% endif %}>
+        <svg width="10" height="10" viewBox="0 0 10 10"><rect x="1" y="0" width="8" height="2" rx="0.5" fill="currentColor"/><rect x="1" y="4" width="8" height="2" rx="0.5" fill="currentColor"/><rect x="1" y="8" width="5" height="2" rx="0.5" fill="currentColor"/></svg>
+      </button>
     </div>
   </div>
   {% endfor %}

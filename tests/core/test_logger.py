@@ -146,3 +146,71 @@ class TestContextVarIsolation:
         assert results["a"][0]["message"] == "from_a"
         assert len(results["b"]) == 1
         assert results["b"][0]["message"] == "from_b"
+
+
+class TestModuleLevelLoggerBridge:
+    """Module-level get_logger() should be captured during task execution."""
+
+    def test_module_logger_captured_in_task_context(self):
+        """Simulates the ETL pattern: module-level logger used inside a task."""
+        from riverflow.core.logger import get_logger
+
+        # Module-level logger (created at import time, wraps parent 'riverflow')
+        module_logger = get_logger(component="my_etl_module")
+
+        # Set up per-task capture (as TaskExecutor does)
+        child = logging.getLogger("riverflow.task.run1.my_task")
+        child.setLevel(logging.DEBUG)
+        child.propagate = True
+
+        handler = TaskLogHandler()
+        child.addHandler(handler)
+
+        task_adapter = RiverFlowLoggerAdapter(
+            child,
+            {"dag_id": "test_dag", "task_id": "my_task", "run_id": "run1"},
+        )
+        token = _current_task_logger.set(task_adapter)
+        try:
+            module_logger.info("hello from module logger")
+            module_logger.warning("warning from module logger")
+        finally:
+            _current_task_logger.reset(token)
+            child.removeHandler(handler)
+
+        assert len(handler.records) == 2
+        assert handler.records[0]["message"] == "hello from module logger"
+        assert handler.records[1]["message"] == "warning from module logger"
+
+    async def test_module_logger_isolated_across_tasks(self):
+        """Two concurrent tasks using the same module-level logger stay isolated."""
+        from riverflow.core.logger import get_logger
+
+        module_logger = get_logger(component="shared_module")
+        results = {}
+
+        async def run_task(name, msg):
+            child = logging.getLogger(f"riverflow.task.run.{name}")
+            child.setLevel(logging.DEBUG)
+            child.propagate = True
+            h = TaskLogHandler()
+            child.addHandler(h)
+            adapter = RiverFlowLoggerAdapter(
+                child,
+                {"dag_id": "dag", "task_id": name, "run_id": "run"},
+            )
+            token = _current_task_logger.set(adapter)
+            try:
+                await asyncio.sleep(0.01)
+                module_logger.info(msg)
+                results[name] = h.records[:]
+            finally:
+                _current_task_logger.reset(token)
+                child.removeHandler(h)
+
+        await asyncio.gather(run_task("a", "msg_a"), run_task("b", "msg_b"))
+
+        assert len(results["a"]) == 1
+        assert results["a"][0]["message"] == "msg_a"
+        assert len(results["b"]) == 1
+        assert results["b"][0]["message"] == "msg_b"

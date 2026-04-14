@@ -3,8 +3,12 @@
 from riverflow.core.dag import DAG, DAGRunState
 from riverflow.core.dag_executor import DAGExecutor
 from riverflow.core.log_store import LogStore
-from riverflow.core.logger import get_task_logger
+from riverflow.core.logger import get_task_logger, get_logger, task_event
 from riverflow.core.task import TaskState
+
+
+# Module-level logger — mirrors the pattern used in ETL tasks
+_module_logger = get_logger(component="test_dag_executor")
 
 
 class TestDAGExecutorLogging:
@@ -91,3 +95,27 @@ class TestDAGExecutorLogging:
         executor = DAGExecutor(dag)
         states = await executor.run()
         assert states["t"] == TaskState.SUCCESS
+
+    async def test_module_level_logger_captured(self, log_store: LogStore):
+        """Reproduce the ETL pattern: module-level get_logger() + @task_event."""
+
+        @task_event
+        async def inner_extract():
+            _module_logger.info("extracting data")
+
+        with DAG(dag_id="etl") as dag:
+            @dag.task("bronze_extract")
+            async def bronze_extract():
+                await inner_extract()
+
+        executor = DAGExecutor(dag, run_id="run_etl", log_store=log_store)
+        states = await executor.run()
+
+        assert states["bronze_extract"] == TaskState.SUCCESS
+        logs = log_store.get_task_logs("run_etl", "bronze_extract")
+        messages = [l["message"] for l in logs]
+        # task_event emits START / END
+        assert any("START" in m for m in messages)
+        assert any("END" in m for m in messages)
+        # module-level logger emits "extracting data"
+        assert any("extracting data" in m for m in messages)

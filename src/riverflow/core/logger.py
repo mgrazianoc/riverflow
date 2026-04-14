@@ -96,6 +96,17 @@ class RiverFlowLoggerAdapter(logging.LoggerAdapter):
     def __init__(self, logger, extra=None):
         super().__init__(logger, extra or {})
 
+    def log(self, level, msg, *args, **kwargs):
+        # If inside a task execution context, delegate to the task-scoped
+        # logger so that log records are captured by the TaskLogHandler.
+        # This bridges module-level loggers (created via get_logger()) with
+        # the per-task capture system set up by TaskExecutor.
+        task_logger = _current_task_logger.get(None)
+        if task_logger is not None and task_logger is not self:
+            task_logger.log(level, msg, *args, **kwargs)
+            return
+        super().log(level, msg, *args, **kwargs)
+
     def process(self, msg, kwargs):
         # Build component name from context
         component_parts = []

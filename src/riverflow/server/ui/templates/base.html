@@ -174,7 +174,14 @@
     }
 
     /* ── After every HTMX morph/swap, re-init what's needed ── */
-    document.body.addEventListener('htmx:afterSettle', function() {
+    document.body.addEventListener('htmx:afterSettle', function(evt) {
+      // The idiomorph morph extension returns an HTMLCollection from handleSwap(),
+      // but HTMX 2.0 guards with Array.isArray() and skips htmx.process() for
+      // non-array return values. Re-process the target so hx-* attributes inside
+      // morph:innerHTML containers get their event listeners.
+      if (evt.detail && evt.detail.target) {
+        htmx.process(evt.detail.target);
+      }
       initTabs();
       document.querySelectorAll('.graph-container').forEach(drawGraphEdges);
       var path = window.location.pathname;

@@ -6,7 +6,7 @@
  * HTMX handles all DOM updates via server-rendered partials.
  */
 
-import type { WSMessage } from "./types/models";
+import type { DAGRunModel, TaskState, WSMessage } from "./types/models";
 import { graphlib, layout } from "@dagrejs/dagre";
 
 // ── Types ──────────────────────────────────────
@@ -63,6 +63,11 @@ class RiverflowWS {
 
   private handleMessage(msg: WSMessage): void {
     if (msg.type === "dag_update") {
+      const data = msg.data as DAGRunModel | undefined;
+      // Patch graph node states in-place (no HTMX re-render → no flicker)
+      if (data?.task_states) {
+        patchGraphNodeStates(data.dag_id, data.task_states);
+      }
       document.body.dispatchEvent(
         new CustomEvent("dag-updated", { detail: msg.data })
       );
@@ -81,6 +86,48 @@ class RiverflowWS {
       this.reconnectDelay * 2,
       this.maxReconnectDelay
     );
+  }
+}
+
+// ── In-place Graph State Patching ──────────────────
+
+/** All possible CSS state classes on graph nodes */
+const STATE_CLASSES = [
+  "state-none",
+  "state-running",
+  "state-success",
+  "state-failed",
+  "state-skipped",
+  "state-upstream_failed",
+  "state-timeout",
+];
+
+/**
+ * Patch graph node visual states in-place without replacing DOM.
+ * This avoids the full dagre re-layout that causes flickering.
+ */
+function patchGraphNodeStates(
+  dagId: string,
+  taskStates: Record<string, TaskState>
+): void {
+  const container = document.querySelector<HTMLElement>(
+    `.graph-container[data-dag-id="${dagId}"]`
+  );
+  if (!container) return;
+
+  for (const [taskId, state] of Object.entries(taskStates)) {
+    const node = container.querySelector<HTMLElement>(
+      `.graph-node[data-task-id="${taskId}"]`
+    );
+    if (!node) continue;
+
+    // Update CSS class
+    node.classList.remove(...STATE_CLASSES);
+    node.classList.add(`state-${state}`);
+
+    // Update state label text
+    const stateLabel = node.querySelector<HTMLElement>(".node-state");
+    if (stateLabel) stateLabel.textContent = state;
   }
 }
 

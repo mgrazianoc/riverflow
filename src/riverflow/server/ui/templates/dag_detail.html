@@ -42,7 +42,7 @@
       <div class="dag-graph"
            id="dag-graph"
            hx-get="/ui/partials/dag-graph/{{ dag.dag_id }}"
-           hx-trigger="load, dag-updated from:body"
+           hx-trigger="load"
            hx-swap="innerHTML">
         <div class="loading-indicator">Loading graph…</div>
       </div>

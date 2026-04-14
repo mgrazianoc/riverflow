@@ -80,7 +80,10 @@ export function TaskDetail({ task, runId, dagId, onClose, onTriggerTask, api }) 
                   ${logs.map(
                     (log, i) => html`
                       <div key=${i} class="task-log-entry ${log.level?.toLowerCase()}">
-                        <span class="task-log-level">${log.level}</span>
+                        <div class="task-log-meta">
+                          <span class="task-log-level">${log.level}</span>
+                          <span class="task-log-ts">${log.timestamp?.replace("T", " ").slice(0, 19)}</span>
+                        </div>
                         <span class="task-log-msg">${log.message}</span>
                       </div>
                     `

@@ -1,0 +1,32 @@
+{# Partial: Run calendar heatmap — shows daily run density over the past 12 weeks #}
+{% if cells %}
+<div class="calendar-heatmap">
+  <div class="calendar-months">
+    {% for m in months %}
+    <span class="calendar-month" style="grid-column: {{ m.col }}">{{ m.label }}</span>
+    {% endfor %}
+  </div>
+  <div class="calendar-grid">
+    {% for day_label in day_labels %}
+    <span class="calendar-day-label" style="grid-row: {{ loop.index }}">{{ day_label }}</span>
+    {% endfor %}
+    {% for cell in cells %}
+    <div class="calendar-cell intensity-{{ cell.intensity }}"
+         style="grid-column: {{ cell.col }}; grid-row: {{ cell.row }};"
+         title="{{ cell.date }}: {{ cell.count }} run{{ 's' if cell.count != 1 else '' }}{% if cell.failures %} ({{ cell.failures }} failed){% endif %}">
+    </div>
+    {% endfor %}
+  </div>
+  <div class="calendar-legend">
+    <span class="calendar-legend-label">Less</span>
+    <div class="calendar-cell intensity-0"></div>
+    <div class="calendar-cell intensity-1"></div>
+    <div class="calendar-cell intensity-2"></div>
+    <div class="calendar-cell intensity-3"></div>
+    <div class="calendar-cell intensity-4"></div>
+    <span class="calendar-legend-label">More</span>
+  </div>
+</div>
+{% else %}
+<p class="empty-state-small">No runs yet — trigger the DAG to see calendar data.</p>
+{% endif %}

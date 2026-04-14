@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Run {{ run.run_id[:8] }}… — Riverflow{% endblock %}
+{% block content %}
+<div class="run-detail">
+  <nav class="breadcrumb">
+    <a href="/ui"
+       hx-get="/ui"
+       hx-target="#main-content"
+       hx-select="#main-content > *"
+       hx-push-url="true">Dashboard</a>
+    <span class="breadcrumb-sep">›</span>
+    <a href="/ui/dags/{{ run.dag_id }}"
+       hx-get="/ui/dags/{{ run.dag_id }}"
+       hx-target="#main-content"
+       hx-select="#main-content > *"
+       hx-push-url="true">{{ run.dag_id }}</a>
+    <span class="breadcrumb-sep">›</span>
+    <span>Run {{ run.run_id[:8] }}…</span>
+  </nav>
+
+  <header class="run-header">
+    <h1>
+      <span class="dag-badge state-{{ run.state.value }}">{{ run.state.value }}</span>
+      Run {{ run.run_id[:12] }}…
+    </h1>
+    <div class="run-meta">
+      <span class="run-meta-item relative-time"
+            data-ts="{{ run.start_time.isoformat() if run.start_time else '' }}"
+            title="{{ run.start_time.strftime('%Y-%m-%d %H:%M:%S') if run.start_time else '' }}">
+        Started {{ run.start_time.strftime('%Y-%m-%d %H:%M:%S') if run.start_time else '—' }}
+      </span>
+      {% if run.duration_seconds %}
+      <span class="run-meta-item">Duration {{ "%.2f"|format(run.duration_seconds) }}s</span>
+      {% endif %}
+      <span class="run-meta-item">{{ run.task_states | length }} tasks</span>
+    </div>
+    {% if run.error %}
+    <div style="margin-top: 12px; padding: 10px 14px; background: var(--fail-bg); border: 1px solid var(--fail-border); border-radius: var(--radius); color: var(--fail); font-size: 0.82rem;">
+      {{ run.error }}
+    </div>
+    {% endif %}
+  </header>
+
+  {# ── Task breakdown table ── #}
+  <table class="run-task-table">
+    <thead>
+      <tr>
+        <th>Task</th>
+        <th>State</th>
+        <th>Logs</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for task_id, state in run.task_states.items() %}
+      <tr>
+        <td style="font-weight: 600">{{ task_id }}</td>
+        <td><span class="dag-badge state-{{ state.value }}">{{ state.value }}</span></td>
+        <td>
+          <button class="btn btn-sm"
+                  onclick="openLogPanel('/ui/partials/task-logs/{{ run.run_id }}?task_id={{ task_id }}')"
+                  title="View logs for {{ task_id }}">Logs</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {# ── Full run logs ── #}
+  <div style="margin-top: 24px;">
+    <h2 style="font-size: 1rem; font-weight: 600; margin-bottom: 12px;">All Logs</h2>
+    <div hx-get="/ui/partials/task-logs/{{ run.run_id }}"
+         hx-trigger="load"
+         hx-swap="innerHTML">
+      <div class="loading-indicator"><div class="skeleton skeleton-block"></div></div>
+    </div>
+  </div>
+</div>
+{% endblock %}

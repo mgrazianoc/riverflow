@@ -14,9 +14,21 @@
   <tbody>
     {% for run in runs %}
     <tr class="history-row state-{{ run.state.value }}">
-      <td class="run-id">{{ run.run_id[:8] }}…</td>
+      <td class="run-id">
+        <a href="/ui/runs/{{ run.run_id }}"
+           hx-get="/ui/runs/{{ run.run_id }}"
+           hx-target="#main-content"
+           hx-select="#main-content > *"
+           hx-push-url="true"
+           style="color: var(--brand); text-decoration: none;">{{ run.run_id[:8] }}…</a>
+      </td>
       <td><span class="dag-badge state-{{ run.state.value }}">{{ run.state.value }}</span></td>
-      <td>{{ run.start_time.strftime('%H:%M:%S') if run.start_time else '—' }}</td>
+      <td>
+        <span class="relative-time" data-ts="{{ run.start_time.isoformat() if run.start_time else '' }}"
+              title="{{ run.start_time.strftime('%Y-%m-%d %H:%M:%S') if run.start_time else '' }}">
+          {{ run.start_time.strftime('%Y-%m-%d %H:%M') if run.start_time else '—' }}
+        </span>
+      </td>
       <td>{{ "%.1f"|format(run.duration_seconds) ~ 's' if run.duration_seconds else '—' }}</td>
       <td class="task-states">
         {% for tid, tstate in run.task_states.items() %}
@@ -35,6 +47,15 @@
     {% endfor %}
   </tbody>
 </table>
+{% if has_more %}
+<div class="pagination">
+  <span class="pagination-info">Showing {{ runs|length }} of {{ total_count }} runs</span>
+  <button class="btn btn-sm"
+          hx-get="/ui/partials/dag-history/{{ dag_id }}?page={{ page + 1 }}"
+          hx-target="#history-table"
+          hx-swap="innerHTML">Load more</button>
+</div>
+{% endif %}
 {% else %}
 <p class="empty-state-small">No runs yet.</p>
 {% endif %}

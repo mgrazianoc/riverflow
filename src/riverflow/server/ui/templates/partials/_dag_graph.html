@@ -12,8 +12,7 @@
     <span class="node-state">{{ node.state.value }}</span>
     <div class="node-actions">
       <button class="node-btn" title="Trigger {{ node.id }}"
-              hx-put="/api/dags/{{ graph.dag_id }}/tasks/{{ node.id }}/trigger"
-              hx-swap="none">
+              onclick="confirmTaskTrigger('{{ graph.dag_id }}', '{{ node.id }}')">
         <svg width="10" height="10" viewBox="0 0 10 10"><polygon points="1,0 9,5 1,10" fill="currentColor"/></svg>
       </button>
       <button class="node-btn" title="View logs for {{ node.id }}"

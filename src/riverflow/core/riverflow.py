@@ -249,7 +249,7 @@ class Riverflow:
                 del self._current_runs[dag.dag_id]
 
             # Persist to SQLite
-            self._persist_run(run_history)
+            await self._persist_run(run_history)
 
             # Notify final state
             self._notify_update(run_history)
@@ -401,14 +401,15 @@ class Riverflow:
 
     # ========== PERSISTENCE HELPERS ==========
 
-    def _persist_run(self, run_history: DAGRunHistory) -> None:
-        """Save a run record to SQLite."""
+    async def _persist_run(self, run_history: DAGRunHistory) -> None:
+        """Save a run record to SQLite (off the event loop)."""
         if self._log_store:
             task_states = {
                 tid: state.value
                 for tid, state in run_history.task_states.items()
             }
-            self._log_store.save_run(
+            await asyncio.to_thread(
+                self._log_store.save_run,
                 run_id=run_history.run_id,
                 dag_id=run_history.dag_id,
                 state=run_history.state.value,
@@ -421,8 +422,14 @@ class Riverflow:
     def get_task_logs(
         self, run_id: str, task_id: Optional[str] = None
     ) -> List[Dict]:
-        """Retrieve captured task logs from the store."""
+        """Retrieve captured task logs from the store (sync)."""
         return self._log_store.get_task_logs(run_id, task_id)
+
+    async def get_task_logs_async(
+        self, run_id: str, task_id: Optional[str] = None
+    ) -> List[Dict]:
+        """Retrieve captured task logs without blocking the event loop."""
+        return await asyncio.to_thread(self._log_store.get_task_logs, run_id, task_id)
 
     # ========== SINGLE TASK TRIGGER ==========
 
@@ -492,7 +499,7 @@ class Riverflow:
             )
 
         finally:
-            self._persist_run(run_history)
+            await self._persist_run(run_history)
             self._notify_update(run_history)
 
         return run_history

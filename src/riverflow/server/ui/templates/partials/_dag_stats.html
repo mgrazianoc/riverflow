@@ -23,4 +23,10 @@
     <span class="stat-value">{{ "%.1f"|format(dag.avg_duration_seconds) }}s</span>
     <span class="stat-label">Avg Duration</span>
   </div>
+  {% if dag.schedule_display %}
+  <div class="stat-card stat-schedule">
+    <span class="stat-value">{{ dag.schedule_display }}</span>
+    <span class="stat-label">Schedule</span>
+  </div>
+  {% endif %}
 </div>

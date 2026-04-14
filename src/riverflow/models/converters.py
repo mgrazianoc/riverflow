@@ -5,7 +5,7 @@ These are the ONLY functions allowed to bridge the core engine
 into the typed model layer.
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 from ..core.dag import DAG
@@ -22,6 +22,34 @@ from .dag import (
 from .run import DAGRunModel, DAGRunStateEnum
 from .task import TaskModel, TaskStateEnum, TriggerRuleEnum
 from .log import LogEntryModel, TaskLogsModel
+from .status import DashboardModel, ScheduledDAGModel
+
+
+# ────────────────────────────────────────
+# Helpers
+# ────────────────────────────────────────
+
+def _format_schedule(schedule) -> Optional[str]:
+    """Human-readable schedule string."""
+    if schedule is None:
+        return None
+    if isinstance(schedule, timedelta):
+        secs = int(schedule.total_seconds())
+        if secs < 60:
+            return f"every {secs}s"
+        if secs < 3600:
+            m = secs // 60
+            return f"every {m}m"
+        h = secs // 3600
+        return f"every {h}h"
+    if isinstance(schedule, dict):
+        parts = []
+        for k in ("minute", "hour", "day", "month", "day_of_week"):
+            parts.append(schedule.get(k, "*"))
+        return " ".join(parts)
+    if isinstance(schedule, str):
+        return schedule
+    return str(schedule)
 
 
 # ────────────────────────────────────────
@@ -43,7 +71,13 @@ def task_to_model(task: Task) -> TaskModel:
 # DAG
 # ────────────────────────────────────────
 
-def dag_to_summary(dag_id: str, is_running: bool, stats: dict) -> DAGSummaryModel:
+def dag_to_summary(
+    dag_id: str,
+    is_running: bool,
+    stats: dict,
+    schedule=None,
+    next_run=None,
+) -> DAGSummaryModel:
     return DAGSummaryModel(
         dag_id=dag_id,
         is_running=is_running,
@@ -52,11 +86,17 @@ def dag_to_summary(dag_id: str, is_running: bool, stats: dict) -> DAGSummaryMode
         failed_count=stats.get("failed_count", 0),
         success_rate=stats.get("success_rate", 0.0),
         avg_duration_seconds=stats.get("avg_duration_seconds", 0.0),
+        schedule_display=_format_schedule(schedule),
+        next_run=next_run,
     )
 
 
 def dag_to_model(
-    dag: DAG, is_running: bool, stats: dict, latest_run_id: Optional[str] = None
+    dag: DAG,
+    is_running: bool,
+    stats: dict,
+    latest_run_id: Optional[str] = None,
+    next_run=None,
 ) -> DAGModel:
     return DAGModel(
         dag_id=dag.dag_id,
@@ -70,6 +110,8 @@ def dag_to_model(
         success_rate=stats.get("success_rate", 0.0),
         avg_duration_seconds=stats.get("avg_duration_seconds", 0.0),
         latest_run_id=latest_run_id,
+        schedule_display=_format_schedule(dag.schedule),
+        next_run=next_run,
     )
 
 
@@ -162,4 +204,43 @@ def logs_to_model(
         task_id=task_id,
         total=len(entries),
         logs=entries,
+    )
+
+
+# ────────────────────────────────────────
+# Dashboard
+# ────────────────────────────────────────
+
+def build_dashboard(riverflow) -> DashboardModel:
+    """Build aggregated dashboard data from the Riverflow instance."""
+    from ..core.dag import DAGRunState
+
+    dag_ids = riverflow.get_registered_dags()
+    total_dags = len(dag_ids)
+    running_now = len(riverflow.get_current_runs())
+
+    all_history = riverflow.get_history()
+    total_runs = len(all_history)
+    success_count = sum(1 for r in all_history if r.state == DAGRunState.SUCCESS)
+    recent_failures = sum(1 for r in all_history[:20] if r.state == DAGRunState.FAILED)
+    overall_rate = (success_count / total_runs * 100) if total_runs else 0.0
+
+    # Build schedule list
+    scheduled: list[ScheduledDAGModel] = []
+    scheduled_info = riverflow.get_scheduled_dags()
+    for info in scheduled_info:
+        dag = riverflow.get_dag(info["dag_id"])
+        scheduled.append(ScheduledDAGModel(
+            dag_id=info["dag_id"],
+            schedule_display=_format_schedule(dag.schedule) if dag else "—",
+            next_run=info.get("next_run"),
+        ))
+
+    return DashboardModel(
+        total_dags=total_dags,
+        running_now=running_now,
+        total_runs=total_runs,
+        recent_failures=recent_failures,
+        overall_success_rate=overall_rate,
+        scheduled_dags=scheduled,
     )

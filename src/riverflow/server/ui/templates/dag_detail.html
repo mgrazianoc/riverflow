@@ -2,6 +2,16 @@
 {% block title %}{{ dag.dag_id }} — Riverflow{% endblock %}
 {% block content %}
 <div class="dag-detail" data-dag-id="{{ dag.dag_id }}">
+  <nav class="breadcrumb">
+    <a href="/ui"
+       hx-get="/ui"
+       hx-target="#main-content"
+       hx-select="#main-content > *"
+       hx-push-url="true">Dashboard</a>
+    <span class="breadcrumb-sep">›</span>
+    <span>{{ dag.dag_id }}</span>
+  </nav>
+
   <header class="dag-header">
     <div>
       <h1>{{ dag.dag_id }}</h1>
@@ -12,8 +22,7 @@
 
     <div class="dag-actions">
       <button class="btn btn-primary"
-              hx-put="/api/dags/{{ dag.dag_id }}/trigger"
-              hx-swap="none"
+              onclick="confirmTrigger('{{ dag.dag_id }}')"
               {% if dag.is_running %}disabled{% endif %}>
         {% if dag.is_running %}Running…{% else %}Trigger DAG{% endif %}
       </button>
@@ -31,7 +40,10 @@
   {# ── Tab bar ── #}
   <div class="tab-bar">
     <button class="tab active" data-tab="graph">Graph</button>
+    <button class="tab" data-tab="grid">Grid</button>
+    <button class="tab" data-tab="calendar">Calendar</button>
     <button class="tab" data-tab="history">History</button>
+    <button class="tab" data-tab="code">Code</button>
     <button class="tab" data-tab="logs">Logs</button>
   </div>
 
@@ -44,7 +56,27 @@
            hx-get="/ui/partials/dag-graph/{{ dag.dag_id }}"
            hx-trigger="load, dag-updated from:body"
            hx-swap="morph:innerHTML">
-        <div class="loading-indicator">Loading graph…</div>
+        <div class="loading-indicator"><div class="skeleton skeleton-graph"></div></div>
+      </div>
+    </section>
+
+    {# ── Grid tab (task × run matrix) ── #}
+    <section class="tab-panel" id="tab-grid">
+      <div hx-get="/ui/partials/dag-grid/{{ dag.dag_id }}"
+           hx-trigger="load, dag-updated from:body"
+           hx-swap="morph:innerHTML"
+           id="grid-view">
+        <div class="loading-indicator"><div class="skeleton skeleton-table"></div></div>
+      </div>
+    </section>
+
+    {# ── Calendar heatmap tab ── #}
+    <section class="tab-panel" id="tab-calendar">
+      <div hx-get="/ui/partials/dag-calendar/{{ dag.dag_id }}"
+           hx-trigger="load, dag-updated from:body"
+           hx-swap="morph:innerHTML"
+           id="calendar-view">
+        <div class="loading-indicator"><div class="skeleton skeleton-block"></div></div>
       </div>
     </section>
 
@@ -54,7 +86,17 @@
            hx-trigger="load, dag-updated from:body"
            hx-swap="morph:innerHTML"
            id="history-table">
-        <div class="loading-indicator">Loading history…</div>
+        <div class="loading-indicator"><div class="skeleton skeleton-table"></div></div>
+      </div>
+    </section>
+
+    {# ── Code tab (Python source) ── #}
+    <section class="tab-panel" id="tab-code">
+      <div hx-get="/ui/partials/dag-code/{{ dag.dag_id }}"
+           hx-trigger="load"
+           hx-swap="innerHTML"
+           id="code-view">
+        <div class="loading-indicator"><div class="skeleton skeleton-block"></div></div>
       </div>
     </section>
 
@@ -64,7 +106,7 @@
            hx-trigger="load, dag-updated from:body"
            hx-swap="morph:innerHTML"
            id="logs-inline">
-        <div class="loading-indicator">Loading logs…</div>
+        <div class="loading-indicator"><div class="skeleton skeleton-block"></div></div>
       </div>
     </section>
   </div>

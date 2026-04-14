@@ -1,0 +1,37 @@
+{# Partial: Recent activity feed — dashboard home #}
+{% if runs %}
+<div class="activity-feed">
+  {% for run in runs %}
+  <div class="activity-item">
+    <span class="activity-dot state-{{ run.state.value }}"></span>
+    <div class="activity-body">
+      <div class="activity-title">
+        <a href="/ui/dags/{{ run.dag_id }}"
+           hx-get="/ui/dags/{{ run.dag_id }}"
+           hx-target="#main-content"
+           hx-select="#main-content > *"
+           hx-push-url="true">{{ run.dag_id }}</a>
+        <span class="dag-badge state-{{ run.state.value }}">{{ run.state.value }}</span>
+      </div>
+      <div class="activity-detail">
+        {% if run.duration_seconds %}{{ "%.1f"|format(run.duration_seconds) }}s{% endif %}
+        · {{ run.task_states | length }} tasks
+        · <a href="/ui/runs/{{ run.run_id }}"
+             hx-get="/ui/runs/{{ run.run_id }}"
+             hx-target="#main-content"
+             hx-select="#main-content > *"
+             hx-push-url="true"
+             style="font-size: 0.75rem; color: var(--brand)">view run</a>
+      </div>
+    </div>
+    <span class="activity-time relative-time"
+          data-ts="{{ run.start_time.isoformat() if run.start_time else '' }}"
+          title="{{ run.start_time.strftime('%Y-%m-%d %H:%M:%S') if run.start_time else '' }}">
+      {{ run.start_time.strftime('%H:%M:%S') if run.start_time else '—' }}
+    </span>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<p class="empty-state-small">No runs recorded yet. Trigger a DAG to get started.</p>
+{% endif %}

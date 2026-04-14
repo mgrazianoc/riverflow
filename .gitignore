@@ -15,3 +15,5 @@ riverflow.db*
 
 # Node (dev-only UI tooling)
 ui-src/node_modules/
+
+.DS_Store

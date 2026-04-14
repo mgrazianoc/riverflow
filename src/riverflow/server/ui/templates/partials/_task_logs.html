@@ -13,6 +13,17 @@
   </div>
 
   {% if logs.logs %}
+  <div class="log-toolbar">
+    <button class="log-filter-btn" data-level="debug">DEBUG</button>
+    <button class="log-filter-btn" data-level="info">INFO</button>
+    <button class="log-filter-btn" data-level="warning">WARN</button>
+    <button class="log-filter-btn" data-level="error">ERROR</button>
+    <input class="log-search" type="text" placeholder="Search logs…" />
+    <button class="log-scroll-btn active" id="log-scroll-toggle"
+            onclick="toggleLogAutoScroll()" title="Toggle auto-scroll">
+      ↓
+    </button>
+  </div>
   <div class="log-entries">
     {% for entry in logs.logs %}
     <div class="log-line level-{{ entry.level | lower }}">

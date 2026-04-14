@@ -1,0 +1,24 @@
+{# Partial: Upcoming schedule list — dashboard home #}
+{% if scheduled_dags %}
+<div class="schedule-list">
+  {% for s in scheduled_dags %}
+  <div class="schedule-item">
+    <div>
+      <div class="schedule-dag">
+        <a href="/ui/dags/{{ s.dag_id }}"
+           hx-get="/ui/dags/{{ s.dag_id }}"
+           hx-target="#main-content"
+           hx-select="#main-content > *"
+           hx-push-url="true">{{ s.dag_id }}</a>
+      </div>
+      <div class="schedule-expr">{{ s.schedule_display }}</div>
+    </div>
+    <div class="schedule-next">
+      {% if s.next_run %}{{ s.next_run.strftime('%H:%M:%S') }}{% else %}—{% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<p class="empty-state-small">No scheduled DAGs. All DAGs are manual-trigger only.</p>
+{% endif %}

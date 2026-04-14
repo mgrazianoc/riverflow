@@ -90,10 +90,11 @@ class TaskExecutor:
             # Remove handler
             if child_logger and task_log_handler:
                 child_logger.removeHandler(task_log_handler)
-            # Flush captured logs to store
+            # Flush captured logs to store (off the event loop)
             if log_store and task_log_handler and task_log_handler.records:
-                log_store.save_task_logs(
-                    run_id, dag_id, task.task_id, task_log_handler.records
+                await asyncio.to_thread(
+                    log_store.save_task_logs,
+                    run_id, dag_id, task.task_id, task_log_handler.records,
                 )
 
     async def _run_with_retries(

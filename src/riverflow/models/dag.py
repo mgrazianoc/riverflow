@@ -16,6 +16,8 @@ class DAGSummaryModel(BaseModel):
     failed_count: int = 0
     success_rate: float = 0.0
     avg_duration_seconds: float = 0.0
+    schedule_display: Optional[str] = None
+    next_run: Optional[datetime] = None
 
 
 class DAGModel(BaseModel):
@@ -32,6 +34,8 @@ class DAGModel(BaseModel):
     success_rate: float = 0.0
     avg_duration_seconds: float = 0.0
     latest_run_id: Optional[str] = None
+    schedule_display: Optional[str] = None
+    next_run: Optional[datetime] = None
 
 
 class DAGNodeModel(BaseModel):

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "riverflow"
-version = "0.6.0"
+version = "0.7.0"
 description = "A lightweight, Python-native workflow orchestration library"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -27,6 +27,11 @@ classifiers = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/riverflow"]
+
+[tool.hatch.build]
+artifacts = [
+    "src/riverflow/server/ui/**",
+]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

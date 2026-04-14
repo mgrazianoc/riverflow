@@ -6,9 +6,9 @@
   <title>{% block title %}Riverflow{% endblock %}</title>
   <link rel="stylesheet" href="/ui/static/riverflow.css" />
   <script src="/ui/static/htmx.min.js"></script>
-  <script src="/ui/static/riverflow.js" defer></script>
+  <script src="/ui/static/idiomorph-ext.min.js"></script>
 </head>
-<body>
+<body hx-ext="morph">
   <div class="app">
     {# ── Sidebar ── #}
     <aside class="sidebar">
@@ -26,7 +26,7 @@
       <nav class="sidebar-nav" hx-get="/ui/partials/dag-list"
            hx-trigger="load, dag-updated from:body"
            hx-target="#dag-list"
-           hx-swap="innerHTML">
+           hx-swap="morph:innerHTML">
         <ul id="dag-list" class="dag-list"></ul>
       </nav>
     </aside>
@@ -49,28 +49,57 @@
   </aside>
 
   <script>
-    // ── Log panel management ──
+    /* ── WebSocket → HTMX event bridge ── */
+    (function() {
+      var ws, badge = document.getElementById('ws-badge');
+      var delay = 1000;
+
+      function connect() {
+        var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        ws = new WebSocket(proto + '//' + location.host + '/ws');
+
+        ws.onopen = function() {
+          delay = 1000;
+          badge.className = 'ws-badge online';
+          badge.textContent = 'online';
+        };
+        ws.onclose = function() {
+          badge.className = 'ws-badge offline';
+          badge.textContent = 'offline';
+          setTimeout(connect, delay);
+          delay = Math.min(delay * 2, 30000);
+        };
+        ws.onerror = function() { ws.close(); };
+        ws.onmessage = function(e) {
+          try {
+            var msg = JSON.parse(e.data);
+            if (msg.type === 'dag_update') {
+              document.body.dispatchEvent(new CustomEvent('dag-updated', { detail: msg.data }));
+            }
+          } catch(err) {}
+        };
+      }
+      connect();
+    })();
+
+    /* ── Log panel ── */
     function openLogPanel(url) {
-      var panel = document.getElementById('log-panel');
-      var backdrop = document.getElementById('log-backdrop');
-      panel.classList.add('open');
-      backdrop.classList.add('open');
+      document.getElementById('log-panel').classList.add('open');
+      document.getElementById('log-backdrop').classList.add('open');
       htmx.ajax('GET', url, '#log-panel-content').then(function() {
-        var entries = panel.querySelector('.log-entries');
+        var entries = document.querySelector('#log-panel .log-entries');
         if (entries) entries.scrollTop = entries.scrollHeight;
       });
     }
-
     function closeLogPanel() {
       document.getElementById('log-panel').classList.remove('open');
       document.getElementById('log-backdrop').classList.remove('open');
     }
-
     document.addEventListener('keydown', function(e) {
       if (e.key === 'Escape') closeLogPanel();
     });
 
-    // ── Tab initialization (re-runs after HTMX swaps) ──
+    /* ── Tabs ── */
     function initTabs() {
       document.querySelectorAll('.tab-bar .tab').forEach(function(btn) {
         btn.addEventListener('click', function() {
@@ -83,22 +112,83 @@
     }
     initTabs();
 
-    // Re-initialize tabs after HTMX content swaps
+    /* ── SVG edge drawing (reads server-computed positions) ── */
+    function drawGraphEdges(container) {
+      container.querySelector('.graph-edges-svg')?.remove();
+      var edgeScript = container.querySelector('#graph-edges');
+      if (!edgeScript) return;
+      var edges;
+      try { edges = JSON.parse(edgeScript.textContent); } catch(e) { return; }
+      if (!edges.length) return;
+
+      var w = parseFloat(container.dataset.graphWidth) || container.scrollWidth;
+      var h = parseFloat(container.dataset.graphHeight) || container.scrollHeight;
+      var ns = 'http://www.w3.org/2000/svg';
+      var svg = document.createElementNS(ns, 'svg');
+      svg.classList.add('graph-edges-svg');
+      svg.setAttribute('width', w);
+      svg.setAttribute('height', h);
+      container.insertBefore(svg, container.firstChild);
+
+      // Arrowhead marker
+      var defs = document.createElementNS(ns, 'defs');
+      var marker = document.createElementNS(ns, 'marker');
+      marker.id = 'dag-arrow';
+      marker.setAttribute('viewBox', '0 0 10 8');
+      marker.setAttribute('refX', '10');
+      marker.setAttribute('refY', '4');
+      marker.setAttribute('markerWidth', '8');
+      marker.setAttribute('markerHeight', '6');
+      marker.setAttribute('orient', 'auto-start-reverse');
+      var poly = document.createElementNS(ns, 'polygon');
+      poly.setAttribute('points', '0 0, 10 4, 0 8');
+      poly.setAttribute('fill', '#94a3b8');
+      marker.appendChild(poly);
+      defs.appendChild(marker);
+      svg.appendChild(defs);
+
+      // Node center lookup
+      var nodes = {};
+      container.querySelectorAll('.graph-node[data-task-id]').forEach(function(el) {
+        var l = parseFloat(el.style.left) || 0;
+        var t = parseFloat(el.style.top) || 0;
+        var nw = el.offsetWidth || 180;
+        var nh = el.offsetHeight || 66;
+        nodes[el.dataset.taskId] = { cx: l + nw/2, cy: t + nh/2, r: nw/2, w: nw, h: nh };
+      });
+
+      edges.forEach(function(e) {
+        var src = nodes[e.source], tgt = nodes[e.target];
+        if (!src || !tgt) return;
+        // Connect right edge of source → left edge of target
+        var x1 = src.cx + src.w/2, y1 = src.cy;
+        var x2 = tgt.cx - tgt.w/2, y2 = tgt.cy;
+        var path = document.createElementNS(ns, 'path');
+        // Smooth cubic bezier
+        var mx = (x1 + x2) / 2;
+        path.setAttribute('d', 'M' + x1 + ',' + y1 + ' C' + mx + ',' + y1 + ' ' + mx + ',' + y2 + ' ' + x2 + ',' + y2);
+        path.setAttribute('class', 'graph-edge');
+        path.setAttribute('marker-end', 'url(#dag-arrow)');
+        svg.appendChild(path);
+      });
+    }
+
+    /* ── After every HTMX morph/swap, re-init what's needed ── */
     document.body.addEventListener('htmx:afterSettle', function() {
       initTabs();
-      // Highlight active sidebar item based on current URL
+      document.querySelectorAll('.graph-container').forEach(drawGraphEdges);
       var path = window.location.pathname;
       document.querySelectorAll('.dag-list-item').forEach(function(item) {
         item.classList.toggle('active', path === '/ui/dags/' + item.dataset.dagId);
       });
     });
 
-    // Highlight active sidebar on initial page load
     document.addEventListener('DOMContentLoaded', function() {
       var path = window.location.pathname;
       document.querySelectorAll('.dag-list-item').forEach(function(item) {
         item.classList.toggle('active', path === '/ui/dags/' + item.dataset.dagId);
       });
+      document.querySelectorAll('.graph-container').forEach(drawGraphEdges);
     });
   </script>
 </body>

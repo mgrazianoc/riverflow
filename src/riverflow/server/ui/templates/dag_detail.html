@@ -42,8 +42,8 @@
       <div class="dag-graph"
            id="dag-graph"
            hx-get="/ui/partials/dag-graph/{{ dag.dag_id }}"
-           hx-trigger="load"
-           hx-swap="innerHTML">
+           hx-trigger="load, dag-updated from:body"
+           hx-swap="morph:innerHTML">
         <div class="loading-indicator">Loading graph…</div>
       </div>
     </section>
@@ -52,7 +52,7 @@
     <section class="tab-panel" id="tab-history">
       <div hx-get="/ui/partials/dag-history/{{ dag.dag_id }}"
            hx-trigger="load, dag-updated from:body"
-           hx-swap="innerHTML"
+           hx-swap="morph:innerHTML"
            id="history-table">
         <div class="loading-indicator">Loading history…</div>
       </div>
@@ -62,7 +62,7 @@
     <section class="tab-panel" id="tab-logs">
       <div hx-get="/ui/partials/dag-logs/{{ dag.dag_id }}"
            hx-trigger="load, dag-updated from:body"
-           hx-swap="innerHTML"
+           hx-swap="morph:innerHTML"
            id="logs-inline">
         <div class="loading-indicator">Loading logs…</div>
       </div>

@@ -37,6 +37,7 @@ from ..models.converters import (
     logs_to_model,
     run_to_model,
 )
+from .graph_layout import layout_dag_graph
 from .ws import ConnectionManager, create_update_callback
 
 
@@ -438,6 +439,7 @@ def create_riverflow_api(riverflow: Optional[Riverflow] = None) -> FastAPI:
                 latest_run = history[0]
         is_running = riverflow.is_running(dag_id)
         graph = dag_to_graph(dag, is_running, latest_run)
+        layout_dag_graph(graph)
         return templates.TemplateResponse(
             request, "partials/_dag_graph.html", {"graph": graph}
         )
@@ -485,8 +487,5 @@ def create_riverflow_api(riverflow: Optional[Riverflow] = None) -> FastAPI:
     # This must come after explicit routes so they take priority
     STATIC_DIR = Path(__file__).resolve().parent / "ui" / "static"
     app.mount("/ui/static", StaticFiles(directory=str(STATIC_DIR)), name="ui_static_files")
-
-    # Keep legacy static mount for old JS UI during transition
-    app.mount("/ui/legacy", StaticFiles(directory=str(UI_DIR)), name="ui_legacy")
 
     return app

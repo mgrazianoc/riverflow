@@ -1,8 +1,13 @@
-{# Partial: DAG graph — loaded via HTMX #}
-<div class="graph-container" data-dag-id="{{ graph.dag_id }}">
+{# Partial: DAG graph — server-positioned nodes, SVG edges drawn by JS #}
+<div class="graph-container graph-laid-out"
+     data-dag-id="{{ graph.dag_id }}"
+     data-graph-width="{{ graph.graph_width }}"
+     data-graph-height="{{ graph.graph_height }}"
+     style="min-width: {{ graph.graph_width }}px; min-height: {{ graph.graph_height }}px;">
   {% for node in graph.nodes %}
   <div class="graph-node state-{{ node.state.value }}"
-       data-task-id="{{ node.id }}">
+       data-task-id="{{ node.id }}"
+       style="left: {{ node.x }}px; top: {{ node.y }}px; width: {{ node.width }}px;">
     <span class="node-label">{{ node.label }}</span>
     <span class="node-state">{{ node.state.value }}</span>
     <div class="node-actions">
@@ -20,7 +25,7 @@
   </div>
   {% endfor %}
 
-  {# Edge data for JS rendering #}
+  {# Edge data for JS SVG rendering #}
   <script type="application/json" id="graph-edges">
     [{% for edge in graph.edges %}{"source":"{{ edge.source }}","target":"{{ edge.target }}"}{% if not loop.last %},{% endif %}{% endfor %}]
   </script>

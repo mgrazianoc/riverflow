@@ -42,6 +42,10 @@ class DAGNodeModel(BaseModel):
     state: TaskStateEnum = TaskStateEnum.NONE
     trigger_rule: TriggerRuleEnum = TriggerRuleEnum.ALL_SUCCESS
     retries: int = 0
+    x: float = 0.0
+    y: float = 0.0
+    width: float = 160.0
+    height: float = 70.0
 
 
 class DAGEdgeModel(BaseModel):
@@ -60,4 +64,6 @@ class DAGGraphModel(BaseModel):
     run_id: Optional[str] = None
     nodes: list[DAGNodeModel] = []
     edges: list[DAGEdgeModel] = []
+    graph_width: float = 0.0
+    graph_height: float = 0.0
     timestamp: datetime

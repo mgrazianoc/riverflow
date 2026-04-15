@@ -20,7 +20,9 @@ from . import core
 from . import models
 from . import server
 
-__version__ = "0.1.1"
+from importlib.metadata import version as _v
+
+__version__ = _v("riverflow")
 
 __all__ = [
     "core",

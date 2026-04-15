@@ -19,12 +19,12 @@ from ..models.dag import DAGGraphModel
 
 # ── Layout constants ─────────────────────────
 
-NODE_W = 180          # default node width (px)
-NODE_H = 66           # default node height (px)
-RANK_SEP = 100        # horizontal gap between ranks
-NODE_SEP = 28         # vertical gap between nodes in same rank
-MARGIN_X = 24         # left/top margin
-MARGIN_Y = 24
+NODE_W = 200          # default node width (px)
+NODE_H = 80           # default node height (px)
+RANK_SEP = 120        # horizontal gap between ranks
+NODE_SEP = 40         # vertical gap between nodes in same rank
+MARGIN_X = 40         # left/top margin
+MARGIN_Y = 40
 
 
 def layout_dag_graph(graph: DAGGraphModel) -> DAGGraphModel:

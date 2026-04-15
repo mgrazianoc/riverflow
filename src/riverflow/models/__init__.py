@@ -9,7 +9,7 @@ No raw dicts, no ad-hoc JSON, no strings.
 from .dag import DAGModel, DAGSummaryModel, DAGGraphModel, DAGNodeModel, DAGEdgeModel
 from .task import TaskModel, TaskStateEnum, TriggerRuleEnum
 from .run import DAGRunModel, DAGRunStateEnum, TaskRunModel
-from .log import LogEntryModel, TaskLogsModel
+from .log import LogEntryModel, TaskLogsModel, RunTimingModel, TaskTimingEntry
 from .status import StatusModel, APIInfoModel, ScheduledDAGModel, DashboardModel
 
 __all__ = [
@@ -30,6 +30,8 @@ __all__ = [
     # Log
     "LogEntryModel",
     "TaskLogsModel",
+    "RunTimingModel",
+    "TaskTimingEntry",
     # Status
     "StatusModel",
     "APIInfoModel",

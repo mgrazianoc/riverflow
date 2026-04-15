@@ -171,3 +171,15 @@ class LogStore:
         if d.get("task_states"):
             d["task_states"] = json.loads(d["task_states"])
         return d
+
+    def get_task_timing(self, run_id: str) -> List[Dict[str, Any]]:
+        """Get per-task start/end timestamps derived from log entries."""
+        conn = self._get_conn()
+        rows = conn.execute(
+            "SELECT task_id, MIN(timestamp) as start_time, "
+            "MAX(timestamp) as end_time, COUNT(*) as log_count "
+            "FROM task_logs WHERE run_id = ? GROUP BY task_id "
+            "ORDER BY MIN(timestamp)",
+            (run_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]

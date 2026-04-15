@@ -17,3 +17,19 @@ class TaskLogsModel(BaseModel):
     task_id: str | None = None
     total: int
     logs: list[LogEntryModel]
+
+
+class TaskTimingEntry(BaseModel):
+    """Per-task timing derived from log timestamps."""
+
+    task_id: str
+    start_time: str
+    end_time: str
+    log_count: int
+
+
+class RunTimingModel(BaseModel):
+    """Per-task timing for a run."""
+
+    run_id: str
+    tasks: list[TaskTimingEntry]

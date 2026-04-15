@@ -14,6 +14,9 @@ wheels/
 riverflow.db*
 
 # Node (dev-only UI tooling)
-ui-src/node_modules/
+ui/node_modules/
+
+# SPA build output (rebuilt by hatch hook)
+src/riverflow/server/ui/dist/
 
 .DS_Store

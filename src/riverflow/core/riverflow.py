@@ -431,6 +431,10 @@ class Riverflow:
         """Retrieve captured task logs without blocking the event loop."""
         return await asyncio.to_thread(self._log_store.get_task_logs, run_id, task_id)
 
+    async def get_task_timing_async(self, run_id: str) -> List[Dict]:
+        """Get per-task start/end timestamps from log data."""
+        return await asyncio.to_thread(self._log_store.get_task_timing, run_id)
+
     # ========== SINGLE TASK TRIGGER ==========
 
     async def trigger_task(

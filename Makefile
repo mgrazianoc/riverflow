@@ -8,23 +8,23 @@ install:  ## Install Python package in dev mode
 	pip install -e ".[dev]"
 
 dev: install  ## Install everything (Python + UI dev deps)
-	cd ui-src && npm install
+	cd ui && npm install
 
 # ── Red Line Checks ─────────────────────────────────
 
-typecheck:  ## TypeScript + Python type checking
-	cd ui-src && npx tsc --noEmit
+typecheck:  ## TypeScript type checking
+	cd ui && npx tsc --noEmit
 	@echo "✓ TypeScript clean"
 
-build-ui:  ## Build the UI JS bundle from TypeScript
-	cd ui-src && npm run build
-	@echo "✓ UI built → src/riverflow/server/ui/static/riverflow.js"
+build-ui:  ## Build the React SPA into the Python package
+	cd ui && npm ci && npm run build
+	@echo "✓ UI built → src/riverflow/server/ui/dist/"
 
-watch-ui:  ## Watch TypeScript and rebuild on changes
-	cd ui-src && npm run watch
+watch-ui:  ## Start Vite dev server with HMR
+	cd ui && npm run dev
 
 generate-types:  ## Generate TS types from running OpenAPI (server must be up)
-	cd ui-src && npm run generate-types
+	cd ui && npm run generate-types
 
 # ── Quality ──────────────────────────────────────────
 

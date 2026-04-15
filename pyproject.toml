@@ -4,14 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "riverflow"
-version = "0.7.0"
+version = "0.8.0"
 description = "A lightweight, Python-native workflow orchestration library"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "apscheduler>=3.11.2",
     "fastapi[standard]>=0.135.3",
-    "jinja2>=3.1.6",
     "pydantic>=2.12.5",
     "pytz>=2026.1.post1",
 ]
@@ -28,9 +27,12 @@ classifiers = [
 [tool.hatch.build.targets.wheel]
 packages = ["src/riverflow"]
 
+[tool.hatch.build.targets.wheel.hooks.custom]
+path = "hatch_build.py"
+
 [tool.hatch.build]
 artifacts = [
-    "src/riverflow/server/ui/**",
+    "src/riverflow/server/ui/dist/**",
 ]
 
 [tool.pytest.ini_options]

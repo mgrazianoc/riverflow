@@ -296,15 +296,25 @@ _current_task_logger: contextvars.ContextVar[Optional[logging.LoggerAdapter]] = 
 
 class TaskLogHandler(logging.Handler):
     """
-    Captures log records into an in-memory list.
-
-    Attach to a child logger during task execution, then flush
-    the accumulated records to a LogStore when the task completes.
+    Captures log records into an in-memory list and incrementally
+    flushes them to a LogStore so the UI can poll partial logs
+    while the task is still running.
     """
 
-    def __init__(self):
+    def __init__(
+        self,
+        log_store=None,
+        run_id: str | None = None,
+        dag_id: str | None = None,
+        task_id: str | None = None,
+    ):
         super().__init__()
         self.records: list[dict] = []
+        self._log_store = log_store
+        self._run_id = run_id
+        self._dag_id = dag_id
+        self._task_id = task_id
+        self._flushed: int = 0  # index of next record to flush
 
     def emit(self, record):
         try:
@@ -315,8 +325,28 @@ class TaskLogHandler(logging.Handler):
                     "message": record.getMessage(),
                 }
             )
+            self._maybe_flush()
         except Exception:
             self.handleError(record)
+
+    def _maybe_flush(self) -> None:
+        """Flush new records to the log store (sync, called from emit)."""
+        if not self._log_store or not self._run_id:
+            return
+        pending = self.records[self._flushed:]
+        if not pending:
+            return
+        try:
+            self._log_store.save_task_logs(
+                self._run_id, self._dag_id, self._task_id, pending,
+            )
+            self._flushed = len(self.records)
+        except Exception:
+            pass  # will retry on next emit
+
+    def flush_remaining(self) -> None:
+        """Final flush for any records not yet persisted."""
+        self._maybe_flush()
 
 
 class _TaskOutputStream:

@@ -146,14 +146,15 @@ class Riverflow:
             force: If True, allows concurrent runs (ignores lock)
 
         Returns:
-            DAGRunHistory if wait=True, None if wait=False
+            DAGRunHistory (RUNNING state if wait=False, final state if wait=True).
+            None only when the DAG is already running and force=False.
 
         Example:
             # Wait for completion
             result = await riverflow.trigger("my_dag")
 
-            # Fire and forget
-            await riverflow.trigger("my_dag", wait=False)
+            # Fire and forget — returns immediately with RUNNING state
+            result = await riverflow.trigger("my_dag", wait=False)
         """
         if dag_id not in self._dags:
             raise ValueError(f"DAG '{dag_id}' not registered with RiverFlow")
@@ -169,42 +170,54 @@ class Riverflow:
                 )
                 return None
 
+        # Create run history upfront so we can return it immediately
+        run_history = self._create_run_history(dag.dag_id)
+
         if wait:
             # Execute synchronously with lock
             async with dag_lock:
-                return await self._execute_dag(dag)
+                return await self._execute_dag(dag, run_history)
         else:
-            # Execute in background
-            asyncio.create_task(self._execute_dag_with_lock(dag))
+            # Execute in background, return RUNNING state immediately
+            asyncio.create_task(self._execute_dag_with_lock(dag, run_history))
             self.logger.info(f"DAG '{dag_id}' triggered in background")
-            return None
+            return run_history
 
-    async def _execute_dag_with_lock(self, dag: DAG) -> DAGRunHistory:
-        """Execute DAG with lock protection"""
-        dag_lock = self._dag_locks[dag.dag_id]
-        async with dag_lock:
-            return await self._execute_dag(dag)
-
-    async def _execute_dag(self, dag: DAG) -> DAGRunHistory:
-        """Internal method to execute a DAG and track its state"""
-        # Generate run ID
+    def _create_run_history(
+        self, dag_id: str, task_id: str | None = None
+    ) -> DAGRunHistory:
+        """Create and register a new DAGRunHistory record."""
         self._run_counter += 1
-        run_id = f"{dag.dag_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{self._run_counter}"
-
-        # Create run history record
+        suffix = f"_{task_id}" if task_id else ""
+        run_id = (
+            f"{dag_id}{suffix}"
+            f"_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            f"_{self._run_counter}"
+        )
         run_history = DAGRunHistory(
-            dag_id=dag.dag_id,
+            dag_id=dag_id,
             run_id=run_id,
             state=DAGRunState.RUNNING,
             start_time=datetime.now(),
         )
-
-        # Add to current runs and history
-        self._current_runs[dag.dag_id] = run_history
+        self._current_runs[dag_id] = run_history
         self._run_history.append(run_history)
-
-        # Notify RUNNING state
         self._notify_update(run_history)
+        return run_history
+
+    async def _execute_dag_with_lock(
+        self, dag: DAG, run_history: DAGRunHistory
+    ) -> DAGRunHistory:
+        """Execute DAG with lock protection"""
+        dag_lock = self._dag_locks[dag.dag_id]
+        async with dag_lock:
+            return await self._execute_dag(dag, run_history)
+
+    async def _execute_dag(
+        self, dag: DAG, run_history: DAGRunHistory
+    ) -> DAGRunHistory:
+        """Internal method to execute a DAG and track its state"""
+        run_id = run_history.run_id
 
         try:
             # Define callback for task state changes
@@ -481,12 +494,15 @@ class Riverflow:
     # ========== SINGLE TASK TRIGGER ==========
 
     async def trigger_task(
-        self, dag_id: str, task_id: str
-    ) -> DAGRunHistory:
+        self, dag_id: str, task_id: str, *, wait: bool = True
+    ) -> DAGRunHistory | None:
         """
         Trigger a single task within a DAG, ignoring its dependencies.
 
         Useful for re-running a specific task or debugging.
+
+        Args:
+            wait: If True, wait for completion. If False, run in background.
         """
         if dag_id not in self._dags:
             raise ValueError(f"DAG '{dag_id}' not registered with RiverFlow")
@@ -498,22 +514,32 @@ class Riverflow:
                 f"Task '{task_id}' not found in DAG '{dag_id}'"
             )
 
-        self._run_counter += 1
-        run_id = (
-            f"{dag_id}_{task_id}"
-            f"_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-            f"_{self._run_counter}"
-        )
+        run_history = self._create_run_history(dag_id, task_id)
 
-        run_history = DAGRunHistory(
-            dag_id=dag_id,
-            run_id=run_id,
-            state=DAGRunState.RUNNING,
-            start_time=datetime.now(),
-        )
-        self._run_history.append(run_history)
-        self._notify_update(run_history)
+        if wait:
+            return await self._execute_single_task(
+                task, task_id, dag_id, run_history
+            )
+        else:
+            asyncio.create_task(
+                self._execute_single_task(
+                    task, task_id, dag_id, run_history
+                )
+            )
+            self.logger.info(
+                f"Task '{task_id}' in DAG '{dag_id}' triggered in background"
+            )
+            return run_history
 
+    async def _execute_single_task(
+        self,
+        task,
+        task_id: str,
+        dag_id: str,
+        run_history: DAGRunHistory,
+    ) -> DAGRunHistory:
+        """Execute a single task and update run_history."""
+        run_id = run_history.run_id
         try:
             task_executor = TaskExecutor()
 

@@ -159,18 +159,30 @@ class RiverFlowAPI:
         return [run_to_model(run) for run in history]
 
     async def trigger_dag(self, dag_id: str) -> DAGRunModel:
-        """Trigger a DAG execution"""
+        """Trigger a DAG execution (returns immediately, runs in background)"""
         try:
-            result = await self.riverflow.trigger(dag_id)
+            result = await self.riverflow.trigger(dag_id, wait=False)
+            if result is None:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"DAG '{dag_id}' is already running",
+                )
             return run_to_model(result)
         except Exception as e:
             self.logger.error(f"Failed to trigger DAG {dag_id}: {e}")
             raise HTTPException(status_code=500, detail=str(e))
 
     async def trigger_task(self, dag_id: str, task_id: str) -> DAGRunModel:
-        """Trigger a single task within a DAG (ignoring dependencies)"""
+        """Trigger a single task within a DAG (returns immediately, runs in background)"""
         try:
-            result = await self.riverflow.trigger_task(dag_id, task_id)
+            result = await self.riverflow.trigger_task(
+                dag_id, task_id, wait=False
+            )
+            if result is None:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"DAG '{dag_id}' is already running",
+                )
             return run_to_model(result)
         except Exception as e:
             self.logger.error(

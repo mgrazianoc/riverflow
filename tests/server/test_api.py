@@ -1,5 +1,7 @@
 """Tests for the FastAPI REST endpoints."""
 
+import asyncio
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 
@@ -61,7 +63,7 @@ class TestTriggerEndpoints:
         resp = await client.put("/api/dags/test_dag/trigger")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["state"] == "success"
+        assert data["state"] == "running"
         assert data["run_id"] is not None
         assert data["dag_id"] == "test_dag"
 
@@ -69,9 +71,9 @@ class TestTriggerEndpoints:
         resp = await client.put("/api/dags/test_dag/tasks/step_a/trigger")
         assert resp.status_code == 200
         data = resp.json()
+        assert data["state"] == "running"
         assert data["dag_id"] == "test_dag"
         assert data["run_id"] is not None
-        assert "step_a" in data["task_states"]
 
     async def test_trigger_unknown_dag(self, client: AsyncClient):
         resp = await client.put("/api/dags/nonexistent/trigger")
@@ -111,6 +113,7 @@ class TestRunLogsEndpoint:
     async def test_get_logs_for_run(self, client: AsyncClient):
         trigger_resp = await client.put("/api/dags/test_dag/trigger")
         run_id = trigger_resp.json()["run_id"]
+        await asyncio.sleep(0.5)  # wait for background DAG to finish
 
         resp = await client.get(f"/api/runs/{run_id}/logs")
         assert resp.status_code == 200
@@ -122,6 +125,7 @@ class TestRunLogsEndpoint:
     async def test_get_logs_filtered_by_task(self, client: AsyncClient):
         trigger_resp = await client.put("/api/dags/test_dag/trigger")
         run_id = trigger_resp.json()["run_id"]
+        await asyncio.sleep(0.5)  # wait for background DAG to finish
 
         resp = await client.get(f"/api/runs/{run_id}/logs?task_id=step_a")
         assert resp.status_code == 200

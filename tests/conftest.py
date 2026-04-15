@@ -55,6 +55,7 @@ def riverflow(tmp_db):
     """Provide a fresh Riverflow instance backed by a temp SQLite database."""
     rf = Riverflow.get_instance()
     rf._log_store = LogStore(db_path=tmp_db)
+    rf._run_history = []  # clear history loaded from default DB
     return rf
 
 

@@ -43,25 +43,25 @@ class ConnectionManager:
         )
 
     async def broadcast(self, message: dict):
-        """Broadcast a message to all connected clients"""
+        """Broadcast a message to all connected clients concurrently."""
         if not self.active_connections:
             return
 
-        # Convert message to JSON
         json_message = json.dumps(message, default=str)
+        connections = list(self.active_connections)
 
-        # Send to all connections
-        disconnected = set()
-        for connection in self.active_connections:
+        async def _safe_send(ws: WebSocket):
             try:
-                await connection.send_text(json_message)
-            except Exception as e:
-                self.logger.error(f"Error sending to client: {e}")
-                disconnected.add(connection)
+                await asyncio.wait_for(ws.send_text(json_message), timeout=5.0)
+            except Exception:
+                return ws
+            return None
 
-        # Remove dead connections
-        for connection in disconnected:
-            self.disconnect(connection)
+        results = await asyncio.gather(*[_safe_send(c) for c in connections])
+
+        for dead in results:
+            if dead is not None:
+                self.disconnect(dead)
 
 
 def create_update_callback(manager: ConnectionManager):

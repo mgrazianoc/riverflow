@@ -77,6 +77,9 @@ class Riverflow:
         )
         install_task_stdout_capture()
 
+        # Rehydrate run history from SQLite
+        self._rehydrate_history()
+
     @classmethod
     def get_instance(cls) -> "Riverflow":
         """Get the singleton instance"""
@@ -400,6 +403,46 @@ class Riverflow:
         return self._log_store
 
     # ========== PERSISTENCE HELPERS ==========
+
+    def _rehydrate_history(self) -> None:
+        """Load past run records from SQLite into in-memory history."""
+        try:
+            rows = self._log_store.get_runs()
+            for row in rows:
+                start = (
+                    datetime.fromisoformat(row["start_time"])
+                    if row.get("start_time")
+                    else None
+                )
+                end = (
+                    datetime.fromisoformat(row["end_time"])
+                    if row.get("end_time")
+                    else None
+                )
+                task_states = {}
+                for tid, sval in (row.get("task_states") or {}).items():
+                    try:
+                        task_states[tid] = TaskState(sval)
+                    except ValueError:
+                        task_states[tid] = TaskState.PENDING
+
+                self._run_history.append(
+                    DAGRunHistory(
+                        dag_id=row["dag_id"],
+                        run_id=row["run_id"],
+                        state=DAGRunState(row["state"]),
+                        start_time=start,
+                        end_time=end,
+                        task_states=task_states,
+                        error=row.get("error"),
+                    )
+                )
+            if self._run_history:
+                self.logger.info(
+                    f"Rehydrated {len(self._run_history)} past run(s) from SQLite"
+                )
+        except Exception as e:
+            self.logger.warning(f"Failed to rehydrate run history: {e}")
 
     async def _persist_run(self, run_history: DAGRunHistory) -> None:
         """Save a run record to SQLite (off the event loop)."""

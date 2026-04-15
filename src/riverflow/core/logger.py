@@ -424,12 +424,23 @@ def get_logger(
     )
 
 
+# Nesting depth for task_event — prevents duplicate START/END when
+# decorated functions call other decorated functions.
+_task_event_depth: contextvars.ContextVar[int] = contextvars.ContextVar(
+    "_task_event_depth", default=0
+)
+
+
 def task_event(func):
     """
     Decorator for logging task execution events (START/END).
 
     Logs the start and end of task execution with timing information.
     Works with both sync and async functions.
+
+    Nesting-aware: only the outermost decorated function logs START/END.
+    Inner decorated functions log ``▸ func_name`` / ``◂ func_name`` so
+    phase boundaries are visible without producing confusing duplicates.
 
     Usage:
         @task_event
@@ -440,33 +451,55 @@ def task_event(func):
 
     @functools.wraps(func)
     async def async_wrapper(*args, **kwargs):
+        depth = _task_event_depth.get(0)
         func_name = func.__name__
         module = func.__module__
         logger = get_logger(component=f"{module}.{func_name}")
 
-        logger.info("START")
+        if depth == 0:
+            logger.info("START")
+        else:
+            logger.info(f"▸ {func_name}")
+
+        token = _task_event_depth.set(depth + 1)
         try:
             result = await func(*args, **kwargs)
-            logger.info("END")
+            if depth == 0:
+                logger.info("END")
+            else:
+                logger.info(f"◂ {func_name}")
             return result
         except Exception as e:
             logger.exception(f"EXCEPTION: {str(e)}")
             raise
+        finally:
+            _task_event_depth.reset(token)
 
     @functools.wraps(func)
     def sync_wrapper(*args, **kwargs):
+        depth = _task_event_depth.get(0)
         func_name = func.__name__
         module = func.__module__
         logger = get_logger(component=f"{module}.{func_name}")
 
-        logger.info("START")
+        if depth == 0:
+            logger.info("START")
+        else:
+            logger.info(f"▸ {func_name}")
+
+        token = _task_event_depth.set(depth + 1)
         try:
             result = func(*args, **kwargs)
-            logger.info("END")
+            if depth == 0:
+                logger.info("END")
+            else:
+                logger.info(f"◂ {func_name}")
             return result
         except Exception as e:
             logger.exception(f"EXCEPTION: {str(e)}")
             raise
+        finally:
+            _task_event_depth.reset(token)
 
     if inspect.iscoroutinefunction(func):
         return async_wrapper

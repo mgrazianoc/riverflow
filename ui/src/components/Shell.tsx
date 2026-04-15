@@ -20,7 +20,7 @@ export function Shell() {
         {/* Brand */}
         <div className="flex items-center gap-2.5 px-5 py-5">
           <svg viewBox="0 0 32 32" className="size-6 shrink-0">
-            <circle cx="16" cy="16" r="14" fill="#3b82f6" />
+            <circle cx="16" cy="16" r="14" fill="#6366f1" />
             <path
               d="M10 12 Q16 8 22 12 Q16 16 10 20 Q16 16 22 20"
               fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"

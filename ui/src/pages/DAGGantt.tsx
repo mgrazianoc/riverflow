@@ -7,13 +7,13 @@ import { formatDuration, cn } from '../lib/utils'
 import type { TaskState } from '../types'
 
 const stateColor: Record<string, string> = {
-  success: 'bg-emerald-500/80',
-  failed: 'bg-red-500/80',
-  running: 'bg-blue-500/70 animate-pulse',
-  skipped: 'bg-zinc-600/60',
-  upstream_failed: 'bg-orange-500/60',
-  timeout: 'bg-amber-500/60',
-  none: 'bg-zinc-700/40',
+  success: 'bg-success/80',
+  failed: 'bg-error/80',
+  running: 'bg-running/70 animate-pulse',
+  skipped: 'bg-ink-muted/30',
+  upstream_failed: 'bg-error/50',
+  timeout: 'bg-warning/60',
+  none: 'bg-border/60',
 }
 
 export function DAGGantt() {
@@ -121,7 +121,7 @@ export function DAGGantt() {
                     >
                       {/* Duration label inside bar if wide enough */}
                       {widthPct > 8 && (
-                        <span className="absolute inset-0 flex items-center justify-center text-[10px] font-medium text-white/90">
+                        <span className="absolute inset-0 flex items-center justify-center text-[10px] font-medium text-ink/90">
                           {formatDuration(durationSec)}
                         </span>
                       )}

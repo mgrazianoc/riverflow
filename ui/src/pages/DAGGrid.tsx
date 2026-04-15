@@ -6,15 +6,15 @@ import type { TaskState, DAGRunState } from '../types'
 
 /** Map task/run states to cell colours. */
 const stateColor: Record<string, string> = {
-  success: 'bg-emerald-500/80',
-  failed: 'bg-red-500/80',
-  running: 'bg-blue-500/80 animate-pulse',
-  skipped: 'bg-zinc-600/60',
-  upstream_failed: 'bg-orange-500/60',
-  timeout: 'bg-amber-500/60',
-  none: 'bg-zinc-800/40',
-  idle: 'bg-zinc-800/40',
-  scheduled: 'bg-zinc-600/60',
+  success: 'bg-success/80',
+  failed: 'bg-error/80',
+  running: 'bg-running/80 animate-pulse',
+  skipped: 'bg-ink-muted/30',
+  upstream_failed: 'bg-error/50',
+  timeout: 'bg-warning/60',
+  none: 'bg-border/60',
+  idle: 'bg-border/60',
+  scheduled: 'bg-ink-muted/30',
 }
 
 const stateLabel: Record<string, string> = {
@@ -35,8 +35,8 @@ function StateCell({ state, runId }: { state: TaskState | DAGRunState; runId: st
       to={`/ui/runs/${runId}`}
       title={stateLabel[state] ?? state}
       className={cn(
-        'block h-6 w-6 rounded-[3px] transition-transform hover:scale-125 hover:ring-1 hover:ring-white/30',
-        stateColor[state] ?? 'bg-zinc-800/40',
+        'block h-6 w-6 rounded-[3px] transition-transform hover:scale-125 hover:ring-1 hover:ring-ink-muted/40',
+        stateColor[state] ?? 'bg-border/60',
       )}
     />
   )

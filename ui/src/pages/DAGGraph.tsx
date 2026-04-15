@@ -171,14 +171,14 @@ function FlowCanvas({ graph, dagId }: { graph: DAGGraph; dagId: string }) {
           proOptions={{ hideAttribution: true }}
           className="!bg-bg"
         >
-          <Background color="#1e1e21" gap={20} size={1} />
+          <Background color="#1f2131" gap={20} size={1} />
           <Controls
             showInteractive={false}
             className="!bg-bg-raised !border-border !rounded-lg !shadow-lg !shadow-black/30 [&>button]:!bg-bg-raised [&>button]:!border-border [&>button]:!text-ink-muted [&>button:hover]:!bg-bg-hover [&>button>svg]:!fill-ink-muted"
           />
           <MiniMap
-            nodeColor={() => '#2e2e33'}
-            maskColor="rgba(10, 10, 11, 0.85)"
+            nodeColor={() => '#2c2f44'}
+            maskColor="rgba(15, 17, 23, 0.85)"
             className="!bg-bg-raised !border-border !rounded-lg"
           />
         </ReactFlow>
@@ -277,7 +277,7 @@ function toReactFlow(graph: DAGGraph, dagId: string, selectedTask: string | null
     target: e.target,
     type: 'smoothstep',
     animated: graph.is_running,
-    style: { stroke: '#2e2e33', strokeWidth: 1.5 },
+    style: { stroke: '#2c2f44', strokeWidth: 1.5 },
   }))
 
   return { nodes, edges }

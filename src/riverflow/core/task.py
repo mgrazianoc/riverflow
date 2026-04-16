@@ -57,13 +57,13 @@ class Task:
             for task in other:
                 if self.task_id == task.task_id:
                     raise SelfDependencyError(self.task_id)
-                task.upstream_tasks.append(self)
+                task.upstream_tasks.uiend(self)
             return other
         else:
             # task1 >> task2
             if self.task_id == other.task_id:
                 raise SelfDependencyError(self.task_id)
-            other.upstream_tasks.append(self)
+            other.upstream_tasks.uiend(self)
             return other
 
     def __lshift__(self, other):
@@ -76,13 +76,13 @@ class Task:
             for task in other:
                 if self.task_id == task.task_id:
                     raise SelfDependencyError(self.task_id)
-                self.upstream_tasks.append(task)
+                self.upstream_tasks.uiend(task)
             return self
         else:
             # task1 << task2
             if self.task_id == other.task_id:
                 raise SelfDependencyError(self.task_id)
-            self.upstream_tasks.append(other)
+            self.upstream_tasks.uiend(other)
             return self
 
     def __rrshift__(self, other):
@@ -93,7 +93,7 @@ class Task:
         for task in other:
             if task.task_id == self.task_id:
                 raise SelfDependencyError(self.task_id)
-            self.upstream_tasks.append(task)
+            self.upstream_tasks.uiend(task)
         return self
 
     def __rlshift__(self, other):
@@ -104,7 +104,7 @@ class Task:
         for task in other:
             if task.task_id == self.task_id:
                 raise SelfDependencyError(self.task_id)
-            task.upstream_tasks.append(self)
+            task.upstream_tasks.uiend(self)
         return other
 
 

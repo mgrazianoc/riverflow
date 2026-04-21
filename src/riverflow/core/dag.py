@@ -4,10 +4,10 @@ from enum import Enum
 
 from .errors import (
     CycleDetectedError,
-    DAGValidationError,
     DuplicateTaskError,
-    InvalidDependencyError,
+    EmptyDAGError,
     SelfDependencyError,
+    UnknownUpstreamTaskError,
 )
 from .task import Task, TriggerRule
 
@@ -117,7 +117,7 @@ class DAG:
     def _validate(self):
         """Comprehensive DAG validation"""
         if not self.tasks:
-            raise DAGValidationError(f"DAG '{self.dag_id}' has no tasks")
+            raise EmptyDAGError(self.dag_id)
 
         # Check for cycles
         self._check_cycles()
@@ -172,8 +172,6 @@ class DAG:
         for task_id, task in self.tasks.items():
             for upstream in task.upstream_tasks:
                 if upstream.task_id not in self.tasks:
-                    raise InvalidDependencyError(
-                        upstream.task_id,
-                        task_id,
-                        f"upstream task '{upstream.task_id}' not found in DAG",
+                    raise UnknownUpstreamTaskError(
+                        self.dag_id, task_id, upstream.task_id
                     )

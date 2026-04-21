@@ -5,6 +5,13 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+/** Derive a friendly error message from a fetch error or unknown. */
+export function errorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message
+  if (typeof err === 'string') return err
+  return 'Unexpected error'
+}
+
 export function relativeTime(iso: string | null): string {
   if (!iso) return '—'
   const d = new Date(iso)

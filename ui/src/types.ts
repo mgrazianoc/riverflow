@@ -119,3 +119,30 @@ export interface RunTiming {
   run_id: string
   tasks: TaskTimingEntry[]
 }
+
+export interface HostSamplePoint {
+  timestamp: string
+  cpu_percent: number
+  load_1: number
+  load_5: number
+  load_15: number
+  mem_used: number
+  mem_total: number
+  mem_percent: number
+  swap_used: number
+  swap_total: number
+  disk_used: number
+  disk_total: number
+  disk_percent: number
+  disk_read_bytes_per_sec: number
+  disk_write_bytes_per_sec: number
+  net_rx_bytes_per_sec: number
+  net_tx_bytes_per_sec: number
+}
+
+export interface HostMetrics {
+  cpu_count: number
+  disk_path: string
+  interval_seconds: number
+  samples: HostSamplePoint[]
+}

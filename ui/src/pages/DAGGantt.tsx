@@ -9,7 +9,7 @@ import type { TaskState } from '../types'
 const stateColor: Record<string, string> = {
   success: 'bg-success/80',
   failed: 'bg-error/80',
-  running: 'bg-running/70 animate-pulse',
+  running: 'bg-accent/80 animate-pulse',
   skipped: 'bg-ink-muted/30',
   upstream_failed: 'bg-error/50',
   timeout: 'bg-warning/60',
@@ -114,14 +114,14 @@ export function DAGGantt() {
                     <div
                       className={cn(
                         'absolute top-0.5 bottom-0.5 rounded-sm transition-all',
-                        stateColor[state] ?? 'bg-zinc-700/40',
+                        stateColor[state] ?? 'bg-border-bright/40',
                       )}
                       style={{ left: `${leftPct}%`, width: `${widthPct}%`, minWidth: '2px' }}
                       title={`${t.task_id}: ${durationSec.toFixed(1)}s`}
                     >
                       {/* Duration label inside bar if wide enough */}
                       {widthPct > 8 && (
-                        <span className="absolute inset-0 flex items-center justify-center text-[10px] font-medium text-ink/90">
+                        <span className="absolute inset-0 flex items-center justify-center font-mono text-[10px] font-medium text-bg">
                           {formatDuration(durationSec)}
                         </span>
                       )}

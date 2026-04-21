@@ -11,6 +11,7 @@ from .task import TaskModel, TaskStateEnum, TriggerRuleEnum
 from .run import DAGRunModel, DAGRunStateEnum, TaskRunModel
 from .log import LogEntryModel, TaskLogsModel, RunTimingModel, TaskTimingEntry
 from .status import StatusModel, APIInfoModel, ScheduledDAGModel, DashboardModel
+from .host import HostMetricsModel, HostSamplePoint
 
 __all__ = [
     # DAG
@@ -37,4 +38,7 @@ __all__ = [
     "APIInfoModel",
     "ScheduledDAGModel",
     "DashboardModel",
+    # Host
+    "HostMetricsModel",
+    "HostSamplePoint",
 ]

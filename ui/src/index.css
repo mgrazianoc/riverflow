@@ -2,44 +2,123 @@
 @import "@xyflow/react/dist/style.css";
 
 @theme {
-  /* ── Refined dark — blue-gray undertone, not pure black ── */
-  --color-bg: #0f1117;
-  --color-bg-raised: #161820;
-  --color-bg-surface: #1c1e28;
-  --color-bg-hover: #232531;
-  --color-bg-inset: #0b0c12;
-  --color-ink: #dfe1e8;
-  --color-ink-secondary: #8b8fa3;
-  --color-ink-muted: #5c5f73;
-  --color-border: #1f2131;
-  --color-border-bright: #2c2f44;
-  /* Accent — indigo, readable on dark without being neon */
-  --color-accent: #6366f1;
-  --color-accent-hover: #818cf8;
-  --color-accent-muted: rgba(99 102 241 / .12);
-  --color-accent-subtle: rgba(99 102 241 / .06);
-  /* Status — muted, professional, not glowing */
-  --color-success: #2da672;
-  --color-success-muted: rgba(45 166 114 / .12);
-  --color-error: #e5534b;
-  --color-error-muted: rgba(229 83 75 / .10);
-  --color-warning: #c69026;
-  --color-warning-muted: rgba(198 144 38 / .10);
-  --color-running: #6366f1;
-  --color-running-muted: rgba(99 102 241 / .12);
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
+  /* ── Broadsheet palette — warm paper, editorial ink ──
+     Authored in OKLCH for wide-gamut (Display-P3) accuracy. Status
+     colors are tuned on a matched lightness/chroma ring so they read
+     as true peers, not a random dashboard quartet.
+     Light by default. Dark inversion left as a future toggle. */
+
+  /* Surfaces — warm off-white, ever so slightly yellow, not cold paper.
+     Hue 85 ≈ warm beige; chroma kept ≤ 0.012 so paper never tints. */
+  --color-bg:           oklch(0.980 0.004 85);  /* paper */
+  --color-bg-raised:    oklch(0.962 0.007 85);  /* panel / table head */
+  --color-bg-surface:   oklch(0.928 0.010 85);  /* deeper inset */
+  --color-bg-hover:     oklch(0.938 0.009 85);  /* hover wash */
+  --color-bg-inset:     oklch(0.952 0.008 85);  /* pre / code */
+
+  /* Ink — one strong black + two editorial greys on warm axis */
+  --color-ink:           oklch(0.220 0    0);   /* 90/100 — headlines, primary text */
+  --color-ink-secondary: oklch(0.405 0.006 85); /* 60/100 — body copy, active labels */
+  --color-ink-muted:     oklch(0.595 0.008 85); /* 40/100 — supporting, meta */
+
+  /* Rules — hairline browns, not cool grey */
+  --color-border:        oklch(0.908 0.010 85);
+  --color-border-bright: oklch(0.858 0.014 85);
+
+  /* Accent — single ink-deep slate-teal. Used ONLY for links, focus,
+     running state, and the chart's primary series. Never chrome. */
+  --color-accent:        oklch(0.395 0.058 215);
+  --color-accent-hover:  oklch(0.315 0.060 215);
+  --color-accent-muted:  oklch(0.395 0.058 215 / 0.08);
+  --color-accent-subtle: oklch(0.395 0.058 215 / 0.04);
+
+  /* Status — muted earth pigments tuned on matched OKLCH ring.
+     Forest / brick / mustard / slate-teal all land at perceptual
+     parity so no single status shouts louder than its peers. */
+  --color-success:        oklch(0.540 0.085 145);           /* forest */
+  --color-success-muted:  oklch(0.540 0.085 145 / 0.10);
+  --color-error:          oklch(0.500 0.135 32);            /* brick */
+  --color-error-muted:    oklch(0.500 0.135 32 / 0.09);
+  --color-warning:        oklch(0.610 0.108 78);            /* mustard */
+  --color-warning-muted:  oklch(0.610 0.108 78 / 0.10);
+  --color-running:        oklch(0.395 0.058 215);           /* = accent */
+  --color-running-muted:  oklch(0.395 0.058 215 / 0.08);
+
+  /* Radii — near-square, editorial */
+  --radius-sm: 2px;
+  --radius-md: 3px;
+  --radius-lg: 4px;
+
+  /* Font stack — editorial display + grotesque body + engineer mono.
+     Fraunces carries the identity; Inter Tight stays invisible; JBM
+     owns run-IDs and timestamps. */
+  --font-sans: "Inter Tight", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-display: "Fraunces", ui-serif, Georgia, "Times New Roman", serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+html {
+  color-scheme: light;
 }
 
 body {
-  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: var(--font-sans);
+  font-feature-settings: "ss01", "ss02", "cv11";
   background: var(--color-bg);
   color: var(--color-ink);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
-::-webkit-scrollbar { width: 6px; height: 6px; }
+/* Display face used on real headlines and hero numbers. */
+.font-display {
+  font-family: var(--font-display);
+  font-feature-settings: "ss01", "ss02";
+  letter-spacing: -0.01em;
+}
+
+/* Mono face used on IDs, timestamps, run IDs, durations in dense tables. */
+.font-mono {
+  font-family: var(--font-mono);
+  font-feature-settings: "zero";
+}
+
+/* Scrollbars — thin, earth-toned, unobtrusive */
+::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--color-border-bright); border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: var(--color-border-bright); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-ink-muted); }
+
+/* Keyboard-only focus — accent rule, no fuzzy halo. */
+:focus-visible {
+  outline: 1.5px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+:focus:not(:focus-visible) { outline: none; }
+
+/* Selection — accent, not browser blue */
+::selection {
+  background: var(--color-accent);
+  color: var(--color-bg);
+}
+
+/* Links inherit ink by default, reveal accent on hover */
+a { color: inherit; text-decoration: none; }
+
+/* Kill the iOS tap highlight */
+* { -webkit-tap-highlight-color: transparent; }
+
+/* Respect reduced-motion: kill animations, trim transitions to
+   near-instant. Keeps functionality (hover still responds) without
+   vestibular distress. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+

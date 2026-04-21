@@ -1,10 +1,17 @@
-import type { DAGSummary, DAGDetail, DAGRun, DAGGraph, TaskLogs, Status, RunTiming } from './types'
+import type { DAGSummary, DAGDetail, DAGRun, DAGGraph, TaskLogs, Status, RunTiming, HostMetrics } from './types'
 
 const BASE = ''
 
 async function fetchJSON<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`)
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+  if (!res.ok) {
+    let detail = `${res.status} ${res.statusText}`
+    try {
+      const body = await res.json()
+      if (body?.detail) detail = body.detail
+    } catch { /* not JSON */ }
+    throw new Error(detail)
+  }
   return res.json()
 }
 
@@ -20,13 +27,30 @@ export const api = {
   },
   triggerDag: async (id: string) => {
     const res = await fetch(`${BASE}/api/dags/${id}/trigger`, { method: 'PUT' })
-    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+    if (!res.ok) {
+      let detail = `${res.status} ${res.statusText}`
+      try { detail = (await res.json()).detail ?? detail } catch { /* ignore */ }
+      throw new Error(detail)
+    }
     return res.json() as Promise<DAGRun>
   },
   triggerTask: async (dagId: string, taskId: string) => {
     const res = await fetch(`${BASE}/api/dags/${dagId}/tasks/${taskId}/trigger`, { method: 'PUT' })
-    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+    if (!res.ok) {
+      let detail = `${res.status} ${res.statusText}`
+      try { detail = (await res.json()).detail ?? detail } catch { /* ignore */ }
+      throw new Error(detail)
+    }
     return res.json() as Promise<DAGRun>
+  },
+  clearHistory: async (dagId: string) => {
+    const res = await fetch(`${BASE}/api/dags/${dagId}/history`, { method: 'DELETE' })
+    if (!res.ok) {
+      let detail = res.statusText
+      try { detail = (await res.json()).detail ?? detail } catch { /* ignore */ }
+      throw new Error(detail)
+    }
+    return res.json() as Promise<{ dag_id: string; cleared: number }>
   },
   getRunLogs: (runId: string, taskId?: string) => {
     const params = taskId ? `?task_id=${taskId}` : ''
@@ -34,4 +58,6 @@ export const api = {
   },
   getRunTiming: (runId: string) =>
     fetchJSON<RunTiming>(`/api/runs/${runId}/timing`),
+  getHostMetrics: (minutes = 60) =>
+    fetchJSON<HostMetrics>(`/api/host/metrics?minutes=${minutes}`),
 }

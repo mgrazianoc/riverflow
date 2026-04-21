@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
-import { Search, Filter, ArrowDown, X } from 'lucide-react'
+import { Search, Filter, ArrowDown, X } from './icons'
 import { cn } from '../lib/utils'
 import type { LogEntry } from '../types'
 
@@ -162,7 +162,7 @@ export function LogViewer({ logs, loading, streaming, className }: LogViewerProp
                   <span className="shrink-0 text-accent/70">{entry.task_id}</span>
                 </div>
                 {/* Message */}
-                <div className="mt-0.5 font-mono text-[11px] leading-relaxed text-ink-secondary break-words whitespace-pre-wrap">
+                <div className="mt-0.5 font-mono text-[11px] leading-relaxed text-ink-secondary wrap-break-word whitespace-pre-wrap">
                   <HighlightedMessage message={entry.message} search={search} />
                 </div>
               </div>
@@ -178,7 +178,7 @@ export function LogViewer({ logs, loading, streaming, className }: LogViewerProp
             setAutoScroll(true)
             scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
           }}
-          className="absolute bottom-4 right-4 flex items-center gap-1 rounded-full bg-accent px-2.5 py-1 text-[10px] font-medium text-white shadow-lg shadow-black/30"
+          className="absolute bottom-4 right-4 flex items-center gap-1 rounded-full bg-accent px-2.5 py-1 text-[10px] font-medium text-bg shadow-md shadow-ink/20"
         >
           <ArrowDown size={10} />
           New logs

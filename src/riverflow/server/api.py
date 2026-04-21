@@ -25,6 +25,8 @@ from ..models import (
     DAGModel,
     DAGRunModel,
     DAGSummaryModel,
+    HostMetricsModel,
+    HostSamplePoint,
     RunTimingModel,
     StatusModel,
     TaskLogsModel,
@@ -38,6 +40,7 @@ from ..models.converters import (
     run_to_model,
 )
 from .graph_layout import layout_dag_graph
+from .host_metrics import HostMetricsCollector
 from .ws import ConnectionManager, create_update_callback
 
 
@@ -50,6 +53,7 @@ class RiverFlowAPI:
     def __init__(self, riverflow: Riverflow, manager: ConnectionManager):
         self.riverflow = riverflow
         self.manager = manager
+        self.host_metrics = HostMetricsCollector()
         self.logger = logger
 
     # ========== Lifecycle Handlers ==========
@@ -57,7 +61,9 @@ class RiverFlowAPI:
     async def startup(self):
         """Application startup"""
         self.riverflow.start_scheduler()
+        await self.host_metrics.start()
         self.logger.info("RiverFlow scheduler started")
+        self.logger.info("Host metrics collector started")
         self.logger.info("RiverFlow API started successfully")
         registered_dags = self.riverflow.get_registered_dags()
         if registered_dags:
@@ -66,6 +72,7 @@ class RiverFlowAPI:
     async def shutdown(self):
         """Application shutdown"""
         self.riverflow.stop_scheduler()
+        await self.host_metrics.stop()
         self.logger.info("RiverFlow scheduler stopped")
 
     # ========== REST Endpoints ==========
@@ -197,6 +204,13 @@ class RiverFlowAPI:
         raw_logs = await self.riverflow.get_task_logs_async(run_id, task_id)
         return logs_to_model(run_id, task_id, raw_logs)
 
+    async def clear_dag_history(self, dag_id: str) -> Dict[str, Any]:
+        """Clear stored run history for a DAG."""
+        if self.riverflow.get_dag(dag_id) is None:
+            raise HTTPException(status_code=404, detail=f"Unknown DAG: {dag_id}")
+        cleared = self.riverflow.clear_history(dag_id=dag_id)
+        return {"dag_id": dag_id, "cleared": cleared}
+
     async def get_run_timing(self, run_id: str) -> RunTimingModel:
         """Get per-task timing derived from log timestamps."""
         raw = await self.riverflow.get_task_timing_async(run_id)
@@ -210,6 +224,37 @@ class RiverFlowAPI:
                     log_count=r["log_count"],
                 )
                 for r in raw
+            ],
+        )
+
+    async def get_host_metrics(self, minutes: float = 60.0) -> HostMetricsModel:
+        """Return a rolling window of host-level CPU/memory/disk/network samples."""
+        samples = self.host_metrics.recent(minutes=minutes)
+        return HostMetricsModel(
+            cpu_count=self.host_metrics.cpu_count,
+            disk_path=self.host_metrics.disk_path,
+            interval_seconds=self.host_metrics.interval_seconds,
+            samples=[
+                HostSamplePoint(
+                    timestamp=datetime.fromtimestamp(s.timestamp),
+                    cpu_percent=s.cpu_percent,
+                    load_1=s.load_1,
+                    load_5=s.load_5,
+                    load_15=s.load_15,
+                    mem_used=s.mem_used,
+                    mem_total=s.mem_total,
+                    mem_percent=s.mem_percent,
+                    swap_used=s.swap_used,
+                    swap_total=s.swap_total,
+                    disk_used=s.disk_used,
+                    disk_total=s.disk_total,
+                    disk_percent=s.disk_percent,
+                    disk_read_bytes_per_sec=s.disk_read_bytes_per_sec,
+                    disk_write_bytes_per_sec=s.disk_write_bytes_per_sec,
+                    net_rx_bytes_per_sec=s.net_rx_bytes_per_sec,
+                    net_tx_bytes_per_sec=s.net_tx_bytes_per_sec,
+                )
+                for s in samples
             ],
         )
 
@@ -406,8 +451,10 @@ def create_riverflow_api(riverflow: Optional[Riverflow] = None) -> FastAPI:
     app.get("/api/history")(api.get_history)
     app.put("/api/dags/{dag_id}/trigger")(api.trigger_dag)
     app.put("/api/dags/{dag_id}/tasks/{task_id}/trigger")(api.trigger_task)
+    app.delete("/api/dags/{dag_id}/history")(api.clear_dag_history)
     app.get("/api/runs/{run_id}/logs")(api.get_run_logs)
     app.get("/api/runs/{run_id}/timing")(api.get_run_timing)
+    app.get("/api/host/metrics")(api.get_host_metrics)
 
     # Register WebSocket endpoint
     app.websocket("/ws")(api.websocket_handler)

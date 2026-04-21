@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useParams, Link } from 'react-router'
 import { useState } from 'react'
-import { ArrowLeft } from 'lucide-react'
 import { api } from '../api'
 import { LogViewer } from '../components/LogViewer'
 import { StateBadge } from '../components/StatusBadge'
@@ -29,11 +28,14 @@ export function RunDetail() {
 
   if (!run) {
     return (
-      <div className="px-8 py-8">
-        <Link to="/ui" className="flex items-center gap-1.5 text-sm text-ink-muted hover:text-ink-secondary">
-          <ArrowLeft size={14} /> Back
+      <div className="mx-auto max-w-7xl px-8 pt-10">
+        <Link
+          to="/ui"
+          className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-muted transition-colors hover:text-ink"
+        >
+          ← Back
         </Link>
-        <p className="mt-6 text-sm text-ink-muted">Run not found or still loading…</p>
+        <p className="mt-6 font-mono text-[11px] text-ink-muted">Run not found or still loading…</p>
       </div>
     )
   }
@@ -42,38 +44,57 @@ export function RunDetail() {
 
   return (
     <div className="flex h-full flex-col">
-      {/* Header */}
-      <header className="shrink-0 border-b border-border px-8 py-5">
-        <div className="flex items-center gap-3">
-          <Link to={`/ui/dags/${run.dag_id}`} className="text-ink-muted hover:text-ink-secondary">
-            <ArrowLeft size={16} />
-          </Link>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-3">
-              <h1 className="text-lg font-semibold tracking-tight">{run.dag_id}</h1>
-              <StateBadge state={run.state} />
-            </div>
-            <p className="mt-0.5 font-mono text-xs text-ink-muted">{run.run_id}</p>
+      {/* Header — editorial, matches DAGDetail rhythm */}
+      <header className="shrink-0 border-b border-border">
+        <div className="mx-auto max-w-7xl px-8 pt-8 pb-5">
+          <div className="mb-4 flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.14em] text-ink-muted">
+            <Link to={`/ui/dags/${run.dag_id}`} className="transition-colors hover:text-ink">
+              ← {run.dag_id}
+            </Link>
+            <span>Run</span>
           </div>
+
+          <div className="flex items-start gap-4">
+            <div className="min-w-0 flex-1">
+              <h1 className="truncate font-mono text-[20px] font-medium tracking-tight text-ink">
+                {run.run_id}
+              </h1>
+              <div className="mt-2 flex items-center gap-4">
+                <StateBadge state={run.state} />
+                <span className="font-mono text-[11px] text-ink-muted">
+                  {run.start_time && <>started {relativeTime(run.start_time)}</>}
+                </span>
+                {run.duration_seconds != null && (
+                  <span className="font-mono text-[11px] text-ink-muted">
+                    <span className="text-ink-secondary">{formatDuration(run.duration_seconds)}</span>
+                  </span>
+                )}
+                <span className="font-mono text-[11px] text-ink-muted">
+                  <span className="text-ink-secondary">{taskIds.length}</span> tasks
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {run.error && (
+            <pre className="mt-4 border-l-2 border-error bg-error-muted px-4 py-2 text-[11px] text-error whitespace-pre-wrap">
+              {run.error}
+            </pre>
+          )}
         </div>
-        <div className="mt-3 flex items-center gap-6 text-xs text-ink-muted">
-          {run.start_time && <span>Started {relativeTime(run.start_time)}</span>}
-          {run.duration_seconds != null && <span>Duration {formatDuration(run.duration_seconds)}</span>}
-          <span>{taskIds.length} tasks</span>
-        </div>
-        {run.error && (
-          <pre className="mt-3 rounded-md bg-error-muted px-3 py-2 text-xs text-error">{run.error}</pre>
-        )}
       </header>
 
       <div className="flex flex-1 overflow-hidden">
         {/* Task sidebar */}
-        <aside className="w-56 shrink-0 overflow-y-auto border-r border-border bg-bg-raised">
-          <div className="px-3 py-3">
+        <aside className="w-60 shrink-0 overflow-y-auto border-r border-border bg-bg-raised/60">
+          <div className="px-4 pt-4">
+            <div className="font-mono text-[9px] font-medium uppercase tracking-[0.14em] text-ink-muted">
+              Tasks
+            </div>
             <button
               onClick={() => setSelectedTask(null)}
               className={cn(
-                'w-full rounded-md px-2.5 py-1.5 text-left text-xs font-medium transition-colors',
+                'mt-2 w-full rounded-sm px-2 py-1 text-left text-[12px] transition-colors',
                 selectedTask === null
                   ? 'bg-bg-surface text-ink'
                   : 'text-ink-secondary hover:bg-bg-hover',
@@ -82,20 +103,20 @@ export function RunDetail() {
               All tasks
             </button>
           </div>
-          <div className="space-y-0.5 px-3 pb-3">
+          <div className="mt-1 space-y-px px-4 pb-4">
             {taskIds.map((tid) => (
               <button
                 key={tid}
                 onClick={() => setSelectedTask(tid)}
                 className={cn(
-                  'flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-xs transition-colors',
+                  'flex w-full items-center justify-between gap-2 rounded-sm px-2 py-1 text-left text-[12px] transition-colors',
                   selectedTask === tid
                     ? 'bg-bg-surface text-ink'
                     : 'text-ink-secondary hover:bg-bg-hover',
                 )}
               >
-                <span className="truncate">{tid}</span>
-                <StateBadge state={run.task_states[tid]} />
+                <span className="truncate font-mono text-[11px]">{tid}</span>
+                <StateBadge state={run.task_states[tid]} compact />
               </button>
             ))}
           </div>

@@ -35,7 +35,7 @@ function StateCell({ state, runId }: { state: TaskState | DAGRunState; runId: st
       to={`/ui/runs/${runId}`}
       title={stateLabel[state] ?? state}
       className={cn(
-        'block h-6 w-6 rounded-[3px] transition-transform hover:scale-125 hover:ring-1 hover:ring-ink-muted/40',
+        'block h-6 w-6 rounded-md transition-transform hover:scale-125 hover:ring-1 hover:ring-ink-muted/40',
         stateColor[state] ?? 'bg-border/60',
       )}
     />
@@ -80,7 +80,7 @@ export function DAGGrid() {
         <p className="py-16 text-center text-sm text-ink-muted">No runs recorded yet</p>
       ) : (
         <div className="inline-block">
-          <table className="border-separate border-spacing-[3px]">
+          <table className="border-separate border-spacing-0.75">
             {/* Column headers: run index */}
             <thead>
               <tr>

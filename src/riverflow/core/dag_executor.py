@@ -235,7 +235,7 @@ class DAGExecutor:
 
             # Check if task should run based on trigger rules
             if self._should_task_run(task, states):
-                ready_tasks.uiend(task)
+                ready_tasks.append(task)
 
         return ready_tasks
 

@@ -13,7 +13,7 @@ import {
   type NodeProps,
   type NodeMouseHandler,
 } from '@xyflow/react'
-import { Play, X, ExternalLink } from 'lucide-react'
+import { Play, X, ExternalLink } from '../components/icons'
 import { api } from '../api'
 import { LogViewer } from '../components/LogViewer'
 import { StateBadge } from '../components/StatusBadge'
@@ -57,10 +57,10 @@ function TaskNode({ data }: NodeProps<Node<TaskNodeData>>) {
 
   return (
     <>
-      <Handle type="target" position={Position.Left} className="!w-1.5 !h-1.5 !bg-border-bright !border-0" />
+      <Handle type="target" position={Position.Left} className="w-1.5! h-1.5! bg-border-bright! border-0!" />
       <div
         className={cn(
-          'cursor-pointer rounded-lg border px-4 py-3 min-w-[160px] transition-all',
+          'cursor-pointer rounded-lg border px-4 py-3 min-w-40 transition-all',
           'hover:shadow-md hover:shadow-black/20',
           data.selected && 'ring-2 ring-accent ring-offset-1 ring-offset-bg',
           style.border, style.bg,
@@ -89,7 +89,7 @@ function TaskNode({ data }: NodeProps<Node<TaskNodeData>>) {
           </div>
         )}
       </div>
-      <Handle type="source" position={Position.Right} className="!w-1.5 !h-1.5 !bg-border-bright !border-0" />
+      <Handle type="source" position={Position.Right} className="w-1.5! h-1.5! bg-border-bright! border-0!" />
     </>
   )
 }
@@ -163,30 +163,45 @@ function FlowCanvas({ graph, dagId }: { graph: DAGGraph; dagId: string }) {
           onNodeClick={onNodeClick}
           onPaneClick={onPaneClick}
           fitView
-          fitViewOptions={{ padding: 0.2 }}
+          fitViewOptions={{ padding: 0.3, maxZoom: 1 }}
           minZoom={0.3}
           maxZoom={2}
           nodesDraggable={false}
           nodesConnectable={false}
           proOptions={{ hideAttribution: true }}
-          className="!bg-bg"
+          className="bg-bg!"
         >
           <Background color="#1f2131" gap={20} size={1} />
           <Controls
             showInteractive={false}
-            className="!bg-bg-raised !border-border !rounded-lg !shadow-lg !shadow-black/30 [&>button]:!bg-bg-raised [&>button]:!border-border [&>button]:!text-ink-muted [&>button:hover]:!bg-bg-hover [&>button>svg]:!fill-ink-muted"
+            className="bg-bg-raised! border-border! rounded-lg! shadow-lg! shadow-black/30! [&>button]:bg-bg-raised! [&>button]:border-border! [&>button]:text-ink-muted! [&>button:hover]:bg-bg-hover! [&>button>svg]:fill-ink-muted!"
           />
           <MiniMap
-            nodeColor={() => '#2c2f44'}
-            maskColor="rgba(15, 17, 23, 0.85)"
-            className="!bg-bg-raised !border-border !rounded-lg"
+            nodeColor={(n) => {
+              const state = (n.data as TaskNodeData | undefined)?.state ?? 'none'
+              switch (state) {
+                case 'success': return '#10b981'
+                case 'failed':
+                case 'upstream_failed': return '#ef4444'
+                case 'running': return '#3b82f6'
+                case 'timeout': return '#f59e0b'
+                case 'skipped': return '#6b7280'
+                default: return '#9ca3af'
+              }
+            }}
+            nodeStrokeColor="#1f2131"
+            nodeStrokeWidth={2}
+            maskColor="rgba(15, 17, 23, 0.6)"
+            pannable
+            zoomable
+            className="bg-bg-raised! border! border-border! rounded-lg!"
           />
         </ReactFlow>
       </div>
 
       {/* Slide-out task panel */}
       {selectedTask && (
-        <aside className="flex h-full w-[400px] shrink-0 flex-col border-l border-border bg-bg-raised">
+        <aside className="flex h-full w-100 shrink-0 flex-col border-l border-border bg-bg-raised">
           {/* Panel header */}
           <div className="flex items-center justify-between border-b border-border px-4 py-3">
             <div className="min-w-0 flex-1">
@@ -261,6 +276,8 @@ function toReactFlow(graph: DAGGraph, dagId: string, selectedTask: string | null
     id: n.id,
     type: 'task',
     position: { x: n.x, y: n.y },
+    width: 180,
+    height: 72,
     data: {
       label: n.label,
       state: n.state,

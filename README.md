@@ -27,10 +27,7 @@ pip install riverflow
 
 ```python
 from datetime import timedelta
-import uvicorn
-from riverflow.core import DAG, Riverflow
-from riverflow.server.api import create_riverflow_api
-from riverflow.server.setup import get_uvicorn_log_config, setup_unified_logging
+from riverflow import DAG, serve
 
 with DAG(dag_id="hourly_rollup", schedule=timedelta(hours=1)) as dag:
     @dag.task("extract")
@@ -44,17 +41,24 @@ with DAG(dag_id="hourly_rollup", schedule=timedelta(hours=1)) as dag:
 
     extract >> transform >> load
 
-setup_unified_logging()
-Riverflow.get_instance().register_dag(dag)
-uvicorn.run(
-    create_riverflow_api(Riverflow.get_instance()),
-    host="0.0.0.0",
-    port=8083,
-    log_config=get_uvicorn_log_config(),
-)
+serve(dag)
 ```
 
 Open `http://localhost:8083/ui`.
+
+Or skip the Python bootstrap entirely:
+
+```bash
+riverflow serve path/to/dags.py --open
+```
+
+For scripts and tests that just want to run a DAG once:
+
+```python
+from riverflow import run
+history = run(dag)
+assert history.state.value == "success"
+```
 
 ## Features
 

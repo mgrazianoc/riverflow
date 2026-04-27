@@ -1,4 +1,4 @@
-import type { DAGSummary, DAGDetail, DAGRun, DAGGraph, TaskLogs, Status, RunTiming, HostMetrics } from './types'
+import type { DAGSummary, DAGDetail, DAGRun, DAGGraph, TaskLogs, Status, RunTiming, HostMetrics, TriggerRunRequest } from './types'
 
 const BASE = ''
 
@@ -25,8 +25,12 @@ export const api = {
     if (dagId) params.set('dag_id', dagId)
     return fetchJSON<DAGRun[]>(`/api/history?${params}`)
   },
-  triggerDag: async (id: string) => {
-    const res = await fetch(`${BASE}/api/dags/${id}/trigger`, { method: 'PUT' })
+  triggerDag: async (id: string, payload?: TriggerRunRequest) => {
+    const res = await fetch(`${BASE}/api/dags/${id}/trigger`, {
+      method: 'PUT',
+      headers: payload ? { 'Content-Type': 'application/json' } : undefined,
+      body: payload ? JSON.stringify(payload) : undefined,
+    })
     if (!res.ok) {
       let detail = `${res.status} ${res.statusText}`
       try { detail = (await res.json()).detail ?? detail } catch { /* ignore */ }
@@ -34,8 +38,12 @@ export const api = {
     }
     return res.json() as Promise<DAGRun>
   },
-  triggerTask: async (dagId: string, taskId: string) => {
-    const res = await fetch(`${BASE}/api/dags/${dagId}/tasks/${taskId}/trigger`, { method: 'PUT' })
+  triggerTask: async (dagId: string, taskId: string, payload?: TriggerRunRequest) => {
+    const res = await fetch(`${BASE}/api/dags/${dagId}/tasks/${taskId}/trigger`, {
+      method: 'PUT',
+      headers: payload ? { 'Content-Type': 'application/json' } : undefined,
+      body: payload ? JSON.stringify(payload) : undefined,
+    })
     if (!res.ok) {
       let detail = `${res.status} ${res.statusText}`
       try { detail = (await res.json()).detail ?? detail } catch { /* ignore */ }

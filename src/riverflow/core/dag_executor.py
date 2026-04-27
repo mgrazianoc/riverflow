@@ -9,6 +9,7 @@ from .errors import (
     TaskTimeoutError,
 )
 from .logger import get_logger
+from .run_context import RunContext
 from .task import Task, TaskInstance, TaskState
 
 
@@ -29,12 +30,14 @@ class DAGExecutor:
         on_task_state_change: Optional[Callable[[str, TaskState], None]] = None,
         run_id: Optional[str] = None,
         log_store=None,
+        run_context: RunContext | None = None,
     ):
         self.dag = dag
         self.task_executor = TaskExecutor()
         self.on_task_state_change = on_task_state_change
         self.run_id = run_id
         self.log_store = log_store
+        self.run_context = run_context
         self.logger = get_logger(component="DAGExecutor", dag_id=dag.dag_id)
 
     def _should_task_run(
@@ -287,6 +290,7 @@ class DAGExecutor:
                 run_id=self.run_id,
                 dag_id=self.dag.dag_id,
                 log_store=self.log_store,
+                run_context=self.run_context,
             )
         except (TaskFailedError, MaxRetriesExceededError, TaskTimeoutError):
             # Re-raise known task errors

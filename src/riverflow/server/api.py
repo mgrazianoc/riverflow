@@ -18,6 +18,7 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
 from ..core.riverflow import Riverflow, get_logger, DAGRunHistory
 from ..models import (
     APIInfoModel,
@@ -45,6 +46,14 @@ from .ws import ConnectionManager, create_update_callback
 
 
 logger = get_logger(component="RiverFlowAPI")
+
+
+class TriggerRunRequest(BaseModel):
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    trigger_source: Optional[str] = None
+    trigger_mode: Optional[str] = None
+    requested_by: Optional[str] = None
+    force: bool = False
 
 
 class RiverFlowAPI:
@@ -165,10 +174,23 @@ class RiverFlowAPI:
 
         return [run_to_model(run) for run in history]
 
-    async def trigger_dag(self, dag_id: str) -> DAGRunModel:
+    async def trigger_dag(
+        self,
+        dag_id: str,
+        payload: Optional[TriggerRunRequest] = None,
+    ) -> DAGRunModel:
         """Trigger a DAG execution (returns immediately, runs in background)"""
+        payload = payload or TriggerRunRequest()
         try:
-            result = await self.riverflow.trigger(dag_id, wait=False)
+            result = await self.riverflow.trigger(
+                dag_id,
+                wait=False,
+                force=payload.force,
+                metadata=payload.metadata,
+                trigger_source=payload.trigger_source or "api",
+                trigger_mode=payload.trigger_mode,
+                requested_by=payload.requested_by,
+            )
             if result is None:
                 raise HTTPException(
                     status_code=409,
@@ -179,11 +201,23 @@ class RiverFlowAPI:
             self.logger.error(f"Failed to trigger DAG {dag_id}: {e}")
             raise HTTPException(status_code=500, detail=str(e))
 
-    async def trigger_task(self, dag_id: str, task_id: str) -> DAGRunModel:
+    async def trigger_task(
+        self,
+        dag_id: str,
+        task_id: str,
+        payload: Optional[TriggerRunRequest] = None,
+    ) -> DAGRunModel:
         """Trigger a single task within a DAG (returns immediately, runs in background)"""
+        payload = payload or TriggerRunRequest()
         try:
             result = await self.riverflow.trigger_task(
-                dag_id, task_id, wait=False
+                dag_id,
+                task_id,
+                wait=False,
+                metadata=payload.metadata,
+                trigger_source=payload.trigger_source or "api",
+                trigger_mode=payload.trigger_mode,
+                requested_by=payload.requested_by,
             )
             if result is None:
                 raise HTTPException(

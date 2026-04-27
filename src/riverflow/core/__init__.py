@@ -23,6 +23,7 @@ from . import logger
 from . import task_executor
 from . import dag_executor
 from . import log_store
+from . import run_context
 
 # Expose main classes for convenient importing
 from .dag import DAG
@@ -30,6 +31,7 @@ from .task import Task
 from .riverflow import Riverflow
 from .logger import get_logger, get_task_logger
 from .log_store import LogStore
+from .run_context import RunContext, get_run_context
 
 __all__ = [
     # Modules
@@ -41,9 +43,13 @@ __all__ = [
     "logger",
     "task_executor",
     "dag_executor",
+    "run_context",
     # Classes
     "DAG",
     "Task",
     "Riverflow",
+    "RunContext",
     "get_logger",
+    "get_task_logger",
+    "get_run_context",
 ]

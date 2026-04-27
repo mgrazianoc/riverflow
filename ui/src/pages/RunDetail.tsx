@@ -81,6 +81,23 @@ export function RunDetail() {
               {run.error}
             </pre>
           )}
+
+          <div className="mt-5 grid grid-cols-4 gap-5 border-t border-border pt-4">
+            <RunContextItem label="Source" value={run.trigger_source ?? 'manual'} />
+            <RunContextItem label="Mode" value={run.trigger_mode ?? '—'} />
+            <RunContextItem label="Requested by" value={run.requested_by ?? '—'} />
+            <RunContextItem label="Force" value={run.force ? 'yes' : 'no'} />
+          </div>
+          {Object.keys(run.metadata ?? {}).length > 0 && (
+            <details className="mt-4 border-t border-border pt-3">
+              <summary className="cursor-pointer font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-ink-muted">
+                Metadata
+              </summary>
+              <pre className="mt-2 max-h-40 overflow-auto bg-bg-surface px-3 py-2 font-mono text-[11px] leading-5 text-ink-secondary">
+                {JSON.stringify(run.metadata, null, 2)}
+              </pre>
+            </details>
+          )}
         </div>
       </header>
 
@@ -130,6 +147,17 @@ export function RunDetail() {
           className="flex-1"
         />
       </div>
+    </div>
+  )
+}
+
+function RunContextItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="font-mono text-[9px] font-medium uppercase tracking-[0.14em] text-ink-muted">
+        {label}
+      </div>
+      <div className="mt-1 truncate font-mono text-[11px] text-ink-secondary">{value}</div>
     </div>
   )
 }

@@ -66,6 +66,25 @@ class TestTriggerEndpoints:
         assert data["state"] == "running"
         assert data["run_id"] is not None
         assert data["dag_id"] == "test_dag"
+        assert data["trigger_source"] == "api"
+
+    async def test_trigger_dag_with_metadata(self, client: AsyncClient):
+        resp = await client.put(
+            "/api/dags/test_dag/trigger",
+            json={
+                "metadata": {"run_mode": "backfill"},
+                "trigger_mode": "queue",
+                "requested_by": "tester",
+                "force": True,
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["metadata"] == {"run_mode": "backfill"}
+        assert data["trigger_source"] == "api"
+        assert data["trigger_mode"] == "queue"
+        assert data["requested_by"] == "tester"
+        assert data["force"] is True
 
     async def test_trigger_single_task(self, client: AsyncClient):
         resp = await client.put("/api/dags/test_dag/tasks/step_a/trigger")
@@ -74,6 +93,7 @@ class TestTriggerEndpoints:
         assert data["state"] == "running"
         assert data["dag_id"] == "test_dag"
         assert data["run_id"] is not None
+        assert data["trigger_source"] == "api"
 
     async def test_trigger_unknown_dag(self, client: AsyncClient):
         resp = await client.put("/api/dags/nonexistent/trigger")

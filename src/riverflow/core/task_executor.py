@@ -16,6 +16,7 @@ from .logger import (
     _current_task_logger,
     _TaskOutputStream,
 )
+from .run_context import RunContext, reset_run_context, set_run_context
 from .task import Task, TaskInstance, TaskState
 
 
@@ -40,6 +41,7 @@ class TaskExecutor:
         run_id: Optional[str] = None,
         dag_id: Optional[str] = None,
         log_store=None,
+        run_context: RunContext | None = None,
     ) -> TaskInstance:
         """Execute a single task with timeout and retries"""
         instance = TaskInstance(task_id=task.task_id)
@@ -47,6 +49,7 @@ class TaskExecutor:
         # --- Set up per-task log capture ---
         task_log_handler: Optional[TaskLogHandler] = None
         task_logger_token = None
+        run_context_token = None
         child_logger = None
         logger = self.logger  # local ref; avoids mutating shared self.logger
 
@@ -75,6 +78,12 @@ class TaskExecutor:
             )
             task_logger_token = _current_task_logger.set(task_adapter)
             logger = task_adapter
+            context = (
+                run_context.with_task(task.task_id)
+                if run_context
+                else RunContext(dag_id=dag_id, run_id=run_id, task_id=task.task_id)
+            )
+            run_context_token = set_run_context(context)
 
             # Ensure stdout/stderr capture wraps the *current* streams.
             # Test runners (e.g. pytest) may replace sys.stdout after the
@@ -92,6 +101,8 @@ class TaskExecutor:
             # Clean up context var
             if task_logger_token is not None:
                 _current_task_logger.reset(task_logger_token)
+            if run_context_token is not None:
+                reset_run_context(run_context_token)
             # Remove handler and flush any remaining logs
             if child_logger and task_log_handler:
                 child_logger.removeHandler(task_log_handler)

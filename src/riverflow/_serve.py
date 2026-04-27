@@ -14,7 +14,7 @@ import sys
 import webbrowser
 from pathlib import Path
 from threading import Timer
-from typing import Iterable, Optional, Union
+from typing import Any, Iterable, Optional, Union
 
 from .core.dag import DAG
 from .core.riverflow import Riverflow, DAGRunHistory
@@ -145,7 +145,14 @@ def serve(
     )
 
 
-def run(dag: DAG, *, setup_logging: bool = True) -> DAGRunHistory:
+def run(
+    dag: DAG,
+    *,
+    setup_logging: bool = True,
+    metadata: dict[str, Any] | None = None,
+    trigger_mode: str | None = None,
+    requested_by: str | None = None,
+) -> DAGRunHistory:
     """
     Execute a DAG once, synchronously, and return its run history.
 
@@ -163,6 +170,9 @@ def run(dag: DAG, *, setup_logging: bool = True) -> DAGRunHistory:
     Args:
         dag: The DAG to execute.
         setup_logging: If True (default), install Riverflow's formatter.
+        metadata: Arbitrary metadata attached to this run.
+        trigger_mode: Optional caller-defined trigger intent.
+        requested_by: Optional user or system identifier.
 
     Returns:
         The final :class:`DAGRunHistory` for the run.
@@ -176,7 +186,16 @@ def run(dag: DAG, *, setup_logging: bool = True) -> DAGRunHistory:
     if dag.dag_id not in riverflow.get_registered_dags():
         riverflow.register_dag(dag)
 
-    history = asyncio.run(riverflow.trigger(dag.dag_id, wait=True))
+    history = asyncio.run(
+        riverflow.trigger(
+            dag.dag_id,
+            wait=True,
+            metadata=metadata,
+            trigger_source="manual",
+            trigger_mode=trigger_mode,
+            requested_by=requested_by,
+        )
+    )
     if history is None:
         raise RuntimeError(
             f"DAG '{dag.dag_id}' was already running; run() cannot proceed."

@@ -178,6 +178,11 @@ def run_to_model(run: DAGRunHistory) -> DAGRunModel:
         },
         error=run.error,
         duration_seconds=duration,
+        metadata=run.run_context.metadata,
+        trigger_source=run.run_context.trigger_source,
+        trigger_mode=run.run_context.trigger_mode,
+        requested_by=run.run_context.requested_by,
+        force=run.run_context.force,
     )
 
 

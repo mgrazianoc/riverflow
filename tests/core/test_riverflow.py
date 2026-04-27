@@ -3,6 +3,7 @@
 from riverflow.core.dag import DAG, DAGRunState
 from riverflow.core.logger import get_task_logger
 from riverflow.core.riverflow import Riverflow
+from riverflow.core.run_context import get_run_context
 from riverflow.core.task import TaskState
 
 
@@ -29,6 +30,57 @@ class TestRiverflowTrigger:
 
         assert result.state == DAGRunState.FAILED
         assert result.task_states["bad_task"] == TaskState.FAILED
+
+    async def test_trigger_metadata_available_in_task(self, riverflow: Riverflow):
+        observed = {}
+
+        with DAG(dag_id="context_dag") as dag:
+            @dag.task("inspect_context")
+            async def inspect_context():
+                context = get_run_context()
+                observed["dag_id"] = context.dag_id
+                observed["run_id"] = context.run_id
+                observed["task_id"] = context.task_id
+                observed["trigger_source"] = context.trigger_source
+                observed["trigger_mode"] = context.trigger_mode
+                observed["requested_by"] = context.requested_by
+                observed["metadata"] = context.metadata
+                observed["force"] = context.force
+
+        riverflow.register_dag(dag)
+        result = await riverflow.trigger(
+            "context_dag",
+            metadata={"run_mode": "backfill"},
+            trigger_source="api",
+            trigger_mode="queue",
+            requested_by="tester",
+            force=True,
+        )
+
+        assert result.run_context.metadata == {"run_mode": "backfill"}
+        assert result.run_context.trigger_source == "api"
+        assert result.run_context.trigger_mode == "queue"
+        assert result.run_context.requested_by == "tester"
+        assert result.run_context.force is True
+        assert observed == {
+            "dag_id": "context_dag",
+            "run_id": result.run_id,
+            "task_id": "inspect_context",
+            "trigger_source": "api",
+            "trigger_mode": "queue",
+            "requested_by": "tester",
+            "metadata": {"run_mode": "backfill"},
+            "force": True,
+        }
+
+    async def test_scheduled_trigger_marks_context(self, riverflow: Riverflow, simple_dag: DAG):
+        riverflow.register_dag(simple_dag)
+
+        await riverflow._scheduled_dag_trigger("test_dag")
+
+        history = riverflow.get_history(dag_id="test_dag", limit=1)
+        assert history[0].run_context.trigger_source == "schedule"
+        assert history[0].run_context.trigger_mode == "scheduled"
 
 
 class TestRiverflowTriggerTask:
@@ -63,6 +115,27 @@ class TestRiverflowTriggerTask:
 
         assert result.state == DAGRunState.FAILED
         assert result.task_states["bad_task"] == TaskState.FAILED
+
+    async def test_single_task_trigger_metadata_available(self, riverflow: Riverflow):
+        observed = {}
+
+        with DAG(dag_id="single_context_dag") as dag:
+            @dag.task("inspect_context")
+            async def inspect_context():
+                context = get_run_context()
+                observed["task_id"] = context.task_id
+                observed["metadata"] = context.metadata
+
+        riverflow.register_dag(dag)
+        result = await riverflow.trigger_task(
+            "single_context_dag",
+            "inspect_context",
+            metadata={"debug": True},
+            trigger_source="api",
+        )
+
+        assert result.run_context.metadata == {"debug": True}
+        assert observed == {"task_id": "inspect_context", "metadata": {"debug": True}}
 
 
 class TestRiverflowLogCapture:
@@ -132,6 +205,26 @@ class TestRiverflowHistory:
         assert stored is not None
         assert stored["state"] == "success"
         assert stored["dag_id"] == "test_dag"
+
+    async def test_run_metadata_persisted_to_sqlite(
+        self, riverflow: Riverflow, simple_dag: DAG
+    ):
+        riverflow.register_dag(simple_dag)
+        result = await riverflow.trigger(
+            "test_dag",
+            metadata={"run_mode": "incremental"},
+            trigger_source="api",
+            trigger_mode="manual",
+            requested_by="tester",
+            force=True,
+        )
+
+        stored = riverflow.log_store.get_run(result.run_id)
+        assert stored["metadata"] == {"run_mode": "incremental"}
+        assert stored["trigger_source"] == "api"
+        assert stored["trigger_mode"] == "manual"
+        assert stored["requested_by"] == "tester"
+        assert stored["force"] is True
 
     async def test_task_trigger_appears_in_history(
         self, riverflow: Riverflow, simple_dag: DAG

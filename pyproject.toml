@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "riverflow"
-version = "1.2.0"
+version = "1.3.0"
 description = "A lightweight, Python-native workflow orchestration library"
 readme = "README.md"
 requires-python = ">=3.13"

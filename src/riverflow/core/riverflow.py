@@ -8,7 +8,7 @@ a centralized interface for triggering and monitoring workflows.
 import asyncio
 import threading
 from datetime import datetime, timedelta
-from typing import Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 from dataclasses import dataclass, field
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -19,6 +19,7 @@ from pytz import timezone as pytz_timezone
 from .dag import DAG, DAGRunState
 from .logger import get_logger, install_task_stdout_capture
 from .dag_executor import DAGExecutor
+from .run_context import RunContext
 from .task import TaskState
 from .task_executor import TaskExecutor
 from .log_store import LogStore
@@ -35,6 +36,7 @@ class DAGRunHistory:
     end_time: Optional[datetime] = None
     task_states: Dict[str, TaskState] = field(default_factory=dict)
     error: Optional[str] = None
+    run_context: RunContext = field(default_factory=RunContext)
 
 
 class Riverflow:
@@ -135,7 +137,16 @@ class Riverflow:
                 self.logger.error(f"Error in update callback {callback.__name__}: {e}")
 
     async def trigger(
-        self, dag_id: str, wait: bool = True, force: bool = False
+        self,
+        dag_id: str,
+        wait: bool = True,
+        force: bool = False,
+        *,
+        metadata: dict[str, Any] | None = None,
+        trigger_source: str = "manual",
+        trigger_mode: str | None = None,
+        requested_by: str | None = None,
+        run_context: RunContext | None = None,
     ) -> Optional[DAGRunHistory]:
         """
         Trigger a DAG execution.
@@ -144,6 +155,11 @@ class Riverflow:
             dag_id: ID of the DAG to trigger
             wait: If True, wait for completion. If False, run in background
             force: If True, allows concurrent runs (ignores lock)
+            metadata: Arbitrary user metadata attached to this run
+            trigger_source: Source that requested the run (e.g. manual, api, schedule)
+            trigger_mode: Caller-defined trigger intent/mode
+            requested_by: Optional user or system identifier
+            run_context: Pre-built context; if provided, explicit fields above fill gaps
 
         Returns:
             DAGRunHistory (RUNNING state if wait=False, final state if wait=True).
@@ -170,8 +186,18 @@ class Riverflow:
                 )
                 return None
 
+        context = self._build_run_context(
+            dag_id=dag.dag_id,
+            force=force,
+            metadata=metadata,
+            trigger_source=trigger_source,
+            trigger_mode=trigger_mode,
+            requested_by=requested_by,
+            run_context=run_context,
+        )
+
         # Create run history upfront so we can return it immediately
-        run_history = self._create_run_history(dag.dag_id)
+        run_history = self._create_run_history(dag.dag_id, run_context=context)
 
         if wait:
             # Execute synchronously with lock
@@ -183,8 +209,46 @@ class Riverflow:
             self.logger.info(f"DAG '{dag_id}' triggered in background")
             return run_history
 
+    def _build_run_context(
+        self,
+        *,
+        dag_id: str,
+        force: bool = False,
+        metadata: dict[str, Any] | None = None,
+        trigger_source: str = "manual",
+        trigger_mode: str | None = None,
+        requested_by: str | None = None,
+        run_context: RunContext | None = None,
+    ) -> RunContext:
+        if run_context is None:
+            return RunContext(
+                dag_id=dag_id,
+                trigger_source=trigger_source,
+                trigger_mode=trigger_mode,
+                requested_by=requested_by,
+                metadata=metadata or {},
+                force=force,
+            )
+
+        merged_metadata = dict(run_context.metadata)
+        if metadata:
+            merged_metadata.update(metadata)
+        return RunContext(
+            dag_id=run_context.dag_id or dag_id,
+            run_id=run_context.run_id,
+            task_id=run_context.task_id,
+            trigger_source=run_context.trigger_source or trigger_source,
+            trigger_mode=run_context.trigger_mode or trigger_mode,
+            requested_by=run_context.requested_by or requested_by,
+            metadata=merged_metadata,
+            force=run_context.force or force,
+        )
+
     def _create_run_history(
-        self, dag_id: str, task_id: str | None = None
+        self,
+        dag_id: str,
+        task_id: str | None = None,
+        run_context: RunContext | None = None,
     ) -> DAGRunHistory:
         """Create and register a new DAGRunHistory record."""
         self._run_counter += 1
@@ -194,11 +258,17 @@ class Riverflow:
             f"_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             f"_{self._run_counter}"
         )
+        context = (run_context or RunContext()).with_run(
+            dag_id=dag_id,
+            run_id=run_id,
+            task_id=task_id,
+        )
         run_history = DAGRunHistory(
             dag_id=dag_id,
             run_id=run_id,
             state=DAGRunState.RUNNING,
             start_time=datetime.now(),
+            run_context=context,
         )
         self._current_runs[dag_id] = run_history
         self._run_history.append(run_history)
@@ -233,6 +303,7 @@ class Riverflow:
                 on_task_state_change=on_task_state_change,
                 run_id=run_id,
                 log_store=self._log_store,
+                run_context=run_history.run_context,
             )
             task_states = await dag_executor.run()
 
@@ -448,6 +519,15 @@ class Riverflow:
                         end_time=end,
                         task_states=task_states,
                         error=row.get("error"),
+                        run_context=RunContext(
+                            dag_id=row["dag_id"],
+                            run_id=row["run_id"],
+                            trigger_source=row.get("trigger_source") or "manual",
+                            trigger_mode=row.get("trigger_mode"),
+                            requested_by=row.get("requested_by"),
+                            metadata=row.get("metadata") or {},
+                            force=bool(row.get("force", False)),
+                        ),
                     )
                 )
             if self._run_history:
@@ -473,6 +553,11 @@ class Riverflow:
                 end_time=run_history.end_time,
                 task_states=task_states,
                 error=run_history.error,
+                metadata=run_history.run_context.metadata,
+                trigger_source=run_history.run_context.trigger_source,
+                trigger_mode=run_history.run_context.trigger_mode,
+                requested_by=run_history.run_context.requested_by,
+                force=run_history.run_context.force,
             )
 
     def get_task_logs(
@@ -494,7 +579,16 @@ class Riverflow:
     # ========== SINGLE TASK TRIGGER ==========
 
     async def trigger_task(
-        self, dag_id: str, task_id: str, *, wait: bool = True
+        self,
+        dag_id: str,
+        task_id: str,
+        *,
+        wait: bool = True,
+        metadata: dict[str, Any] | None = None,
+        trigger_source: str = "manual",
+        trigger_mode: str | None = None,
+        requested_by: str | None = None,
+        run_context: RunContext | None = None,
     ) -> DAGRunHistory | None:
         """
         Trigger a single task within a DAG, ignoring its dependencies.
@@ -514,7 +608,19 @@ class Riverflow:
                 f"Task '{task_id}' not found in DAG '{dag_id}'"
             )
 
-        run_history = self._create_run_history(dag_id, task_id)
+        context = self._build_run_context(
+            dag_id=dag_id,
+            metadata=metadata,
+            trigger_source=trigger_source,
+            trigger_mode=trigger_mode,
+            requested_by=requested_by,
+            run_context=run_context,
+        )
+        run_history = self._create_run_history(
+            dag_id,
+            task_id,
+            run_context=context,
+        )
 
         if wait:
             return await self._execute_single_task(
@@ -553,6 +659,7 @@ class Riverflow:
                 run_id=run_id,
                 dag_id=dag_id,
                 log_store=self._log_store,
+                run_context=run_history.run_context,
             )
             run_history.task_states[task_id] = instance.state
             run_history.end_time = datetime.now()
@@ -657,7 +764,12 @@ class Riverflow:
     async def _scheduled_dag_trigger(self, dag_id: str):
         """Async wrapper for scheduled DAG triggers"""
         try:
-            await self.trigger(dag_id, wait=False)
+            await self.trigger(
+                dag_id,
+                wait=False,
+                trigger_source="schedule",
+                trigger_mode="scheduled",
+            )
         except Exception as e:
             self.logger.error(f"Error in scheduled trigger for DAG '{dag_id}': {e}")
 

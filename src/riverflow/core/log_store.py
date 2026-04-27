@@ -54,7 +54,12 @@ class LogStore:
                 start_time TEXT,
                 end_time TEXT,
                 task_states TEXT,
-                error TEXT
+                error TEXT,
+                metadata TEXT,
+                trigger_source TEXT,
+                trigger_mode TEXT,
+                requested_by TEXT,
+                force INTEGER NOT NULL DEFAULT 0
             );
             CREATE INDEX IF NOT EXISTS idx_dag_runs_dag
                 ON dag_runs(dag_id);
@@ -62,7 +67,25 @@ class LogStore:
                 ON dag_runs(start_time);
             """
         )
+        self._ensure_dag_run_columns(conn)
         conn.commit()
+
+    def _ensure_dag_run_columns(self, conn: sqlite3.Connection) -> None:
+        """Add newer dag_runs columns when opening an older Riverflow DB."""
+
+        columns = {
+            row["name"] for row in conn.execute("PRAGMA table_info(dag_runs)").fetchall()
+        }
+        migrations = {
+            "metadata": "ALTER TABLE dag_runs ADD COLUMN metadata TEXT",
+            "trigger_source": "ALTER TABLE dag_runs ADD COLUMN trigger_source TEXT",
+            "trigger_mode": "ALTER TABLE dag_runs ADD COLUMN trigger_mode TEXT",
+            "requested_by": "ALTER TABLE dag_runs ADD COLUMN requested_by TEXT",
+            "force": "ALTER TABLE dag_runs ADD COLUMN force INTEGER NOT NULL DEFAULT 0",
+        }
+        for column, statement in migrations.items():
+            if column not in columns:
+                conn.execute(statement)
 
     # ========== Task Logs ==========
 
@@ -117,13 +140,19 @@ class LogStore:
         end_time: Optional[datetime],
         task_states: Dict[str, str],
         error: Optional[str],
+        metadata: Optional[Dict[str, Any]] = None,
+        trigger_source: Optional[str] = None,
+        trigger_mode: Optional[str] = None,
+        requested_by: Optional[str] = None,
+        force: bool = False,
     ) -> None:
         """Persist a DAG run record (insert or update)."""
         conn = self._get_conn()
         conn.execute(
             "INSERT OR REPLACE INTO dag_runs "
-            "(run_id, dag_id, state, start_time, end_time, task_states, error) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "(run_id, dag_id, state, start_time, end_time, task_states, error, "
+            "metadata, trigger_source, trigger_mode, requested_by, force) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 run_id,
                 dag_id,
@@ -132,6 +161,11 @@ class LogStore:
                 end_time.isoformat() if end_time else None,
                 json.dumps(task_states),
                 error,
+                json.dumps(metadata or {}),
+                trigger_source,
+                trigger_mode,
+                requested_by,
+                1 if force else 0,
             ),
         )
         conn.commit()
@@ -156,6 +190,11 @@ class LogStore:
             d = dict(r)
             if d.get("task_states"):
                 d["task_states"] = json.loads(d["task_states"])
+            if d.get("metadata"):
+                d["metadata"] = json.loads(d["metadata"])
+            else:
+                d["metadata"] = {}
+            d["force"] = bool(d.get("force", False))
             result.append(d)
         return result
 
@@ -170,6 +209,11 @@ class LogStore:
         d = dict(row)
         if d.get("task_states"):
             d["task_states"] = json.loads(d["task_states"])
+        if d.get("metadata"):
+            d["metadata"] = json.loads(d["metadata"])
+        else:
+            d["metadata"] = {}
+        d["force"] = bool(d.get("force", False))
         return d
 
     def get_task_timing(self, run_id: str) -> List[Dict[str, Any]]:

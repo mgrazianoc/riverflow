@@ -24,6 +24,7 @@ from . import core, models, server
 from .core.dag import DAG
 from .core.logger import get_logger, get_task_logger
 from .core.riverflow import Riverflow
+from .core.run_context import RunContext, get_run_context
 from .core.task import Task
 from ._serve import run, serve
 
@@ -32,10 +33,12 @@ __all__ = [
     "DAG",
     "Task",
     "Riverflow",
+    "RunContext",
     "serve",
     "run",
     "get_logger",
     "get_task_logger",
+    "get_run_context",
     # Submodules
     "core",
     "models",

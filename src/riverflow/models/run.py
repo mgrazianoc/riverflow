@@ -1,8 +1,8 @@
 from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import Any, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .task import TaskStateEnum
 
@@ -30,6 +30,11 @@ class DAGRunModel(BaseModel):
     state: DAGRunStateEnum
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
-    task_states: dict[str, TaskStateEnum] = {}
+    task_states: dict[str, TaskStateEnum] = Field(default_factory=dict)
     error: Optional[str] = None
     duration_seconds: Optional[float] = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    trigger_source: Optional[str] = None
+    trigger_mode: Optional[str] = None
+    requested_by: Optional[str] = None
+    force: bool = False

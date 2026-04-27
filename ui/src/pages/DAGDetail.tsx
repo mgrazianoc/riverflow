@@ -1,17 +1,18 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useParams, Link, NavLink, Outlet } from 'react-router'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Play } from '../components/icons'
 import { api } from '../api'
 import { StateBadge } from '../components/StatusBadge'
 import { RelativeTime } from '../components/RelativeTime'
 import { SkeletonRows } from '../components/Skeleton'
 import { ErrorState, EmptyState } from '../components/QueryState'
+import { TriggerRunDialog } from '../components/TriggerRunDialog'
 import { useToast } from '../hooks/useToast'
 import { formatRate, formatDuration, cn, errorMessage } from '../lib/utils'
 import { useShortcut } from '../hooks/useShortcut'
 import { useUrlState } from '../hooks/useUrlState'
-import type { DAGRunState } from '../types'
+import type { DAGRunState, TriggerRunRequest } from '../types'
 
 const tabs = [
   { to: '', label: 'Overview', end: true },
@@ -26,6 +27,7 @@ export function DAGDetail() {
   const { dagId } = useParams<{ dagId: string }>()
   const qc = useQueryClient()
   const toast = useToast()
+  const [triggerOpen, setTriggerOpen] = useState(false)
   const dagQ = useQuery({
     queryKey: ['dag', dagId],
     queryFn: () => api.getDag(dagId!),
@@ -35,9 +37,10 @@ export function DAGDetail() {
   const dag = dagQ.data
 
   const trigger = useMutation({
-    mutationFn: () => api.triggerDag(dagId!),
+    mutationFn: (payload?: TriggerRunRequest) => api.triggerDag(dagId!, payload),
     onSuccess: (run) => {
       toast.push(`Triggered ${run.dag_id}`, 'success')
+      setTriggerOpen(false)
       qc.invalidateQueries({ queryKey: ['dag', dagId] })
       qc.invalidateQueries({ queryKey: ['history'] })
     },
@@ -56,7 +59,7 @@ export function DAGDetail() {
   })
 
   useShortcut('t', () => {
-    if (!trigger.isPending && dag) trigger.mutate()
+    if (!trigger.isPending && dag) setTriggerOpen(true)
   }, { enabled: !!dag })
 
   if (dagQ.isLoading) {
@@ -107,7 +110,7 @@ export function DAGDetail() {
                 Clear history
               </button>
               <button
-                onClick={() => trigger.mutate()}
+                onClick={() => setTriggerOpen(true)}
                 disabled={trigger.isPending}
                 title="Trigger (t)"
                 className="inline-flex items-center gap-1.5 border border-ink bg-ink px-3 py-1.5 text-[12px] font-medium text-bg transition-colors hover:bg-accent hover:border-accent disabled:opacity-50"
@@ -166,6 +169,14 @@ export function DAGDetail() {
       <div className="flex-1 overflow-y-auto">
         <Outlet />
       </div>
+
+      <TriggerRunDialog
+        dagId={dag.dag_id}
+        open={triggerOpen}
+        pending={trigger.isPending}
+        onClose={() => setTriggerOpen(false)}
+        onSubmit={(payload) => trigger.mutate(payload)}
+      />
     </div>
   )
 }
@@ -224,6 +235,9 @@ export function DAGOverview() {
                 </span>
                 <span className="w-20 text-right text-xs tabular-nums text-ink-muted">
                   {r.duration_seconds != null ? formatDuration(r.duration_seconds) : '—'}
+                </span>
+                <span className="w-28 truncate text-right font-mono text-[10px] text-ink-muted">
+                  {r.trigger_source ?? 'manual'}{r.trigger_mode ? `/${r.trigger_mode}` : ''}
                 </span>
                 <RelativeTime iso={r.start_time} className="w-20 text-right text-xs tabular-nums text-ink-muted" />
               </Link>
@@ -296,7 +310,16 @@ export function DAGHistory() {
     if (stateFilter !== 'all') r = r.filter((run) => run.state === stateFilter)
     if (search.trim()) {
       const q = search.toLowerCase()
-      r = r.filter((run) => run.run_id.toLowerCase().includes(q))
+      r = r.filter((run) => {
+        const haystack = [
+          run.run_id,
+          run.trigger_source,
+          run.trigger_mode,
+          run.requested_by,
+          JSON.stringify(run.metadata ?? {}),
+        ].join(' ').toLowerCase()
+        return haystack.includes(q)
+      })
     }
     return r
   }, [runsQ.data, stateFilter, search])
@@ -344,6 +367,7 @@ export function DAGHistory() {
             <col className="w-27.5" />
             <col />
             <col className="w-30" />
+            <col className="w-36" />
             <col className="w-25" />
             <col className="w-17.5" />
           </colgroup>
@@ -352,6 +376,7 @@ export function DAGHistory() {
               <th className="py-2.5">Status</th>
               <th className="py-2.5">Run ID</th>
               <th className="py-2.5">Started</th>
+              <th className="py-2.5">Trigger</th>
               <th className="py-2.5 text-right">Duration</th>
               <th className="py-2.5 text-right">Tasks</th>
             </tr>
@@ -376,6 +401,9 @@ export function DAGHistory() {
                     )}
                   </td>
                   <td className="py-2.5 align-top font-mono text-[11px] text-ink-muted"><RelativeTime iso={r.start_time} /></td>
+                  <td className="py-2.5 align-top">
+                    <TriggerCell source={r.trigger_source} mode={r.trigger_mode} force={r.force} />
+                  </td>
                   <td className="py-2.5 align-top text-right font-mono text-[11px] text-ink-secondary">{formatDuration(r.duration_seconds)}</td>
                   <td className="py-2.5 align-top text-right font-mono text-[11px] text-ink-muted">{Object.keys(r.task_states).length}</td>
                 </tr>
@@ -384,6 +412,15 @@ export function DAGHistory() {
           </tbody>
         </table>
       )}
+    </div>
+  )
+}
+
+function TriggerCell({ source, mode, force }: { source: string | null; mode: string | null; force: boolean }) {
+  return (
+    <div className="font-mono text-[10px] leading-4 text-ink-muted">
+      <div className="text-ink-secondary">{source ?? 'manual'}</div>
+      <div>{mode ?? '—'}{force ? ' · force' : ''}</div>
     </div>
   )
 }

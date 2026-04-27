@@ -57,6 +57,19 @@ export interface DAGRun {
   task_states: Record<string, TaskState>
   error: string | null
   duration_seconds: number | null
+  metadata: Record<string, unknown>
+  trigger_source: string | null
+  trigger_mode: string | null
+  requested_by: string | null
+  force: boolean
+}
+
+export interface TriggerRunRequest {
+  metadata?: Record<string, unknown>
+  trigger_source?: string | null
+  trigger_mode?: string | null
+  requested_by?: string | null
+  force?: boolean
 }
 
 export interface DAGGraph {

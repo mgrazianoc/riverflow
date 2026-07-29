@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 /**
  * Persistent state mirrored to localStorage. SSR-safe and resilient to JSON errors.
@@ -14,25 +14,26 @@ export function useLocalStorage<T>(key: string, initial: T): [T, (v: T | ((prev:
     }
   })
 
-  const keyRef = useRef(key)
-  keyRef.current = key
-
   const setAndPersist = useCallback((v: T | ((prev: T) => T)) => {
     setValue((prev) => {
       const next = typeof v === 'function' ? (v as (p: T) => T)(prev) : v
       try {
-        window.localStorage.setItem(keyRef.current, JSON.stringify(next))
+        window.localStorage.setItem(key, JSON.stringify(next))
       } catch {
         /* quota / private mode — ignore */
       }
       return next
     })
-  }, [])
+  }, [key])
 
   // Sync across tabs
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
-      if (e.key !== keyRef.current || e.newValue == null) return
+      if (e.key !== key) return
+      if (e.newValue == null) {
+        setValue(initial)
+        return
+      }
       try {
         setValue(JSON.parse(e.newValue) as T)
       } catch {
@@ -41,7 +42,7 @@ export function useLocalStorage<T>(key: string, initial: T): [T, (v: T | ((prev:
     }
     window.addEventListener('storage', onStorage)
     return () => window.removeEventListener('storage', onStorage)
-  }, [])
+  }, [initial, key])
 
   return [value, setAndPersist]
 }

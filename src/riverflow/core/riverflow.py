@@ -6,6 +6,7 @@ a centralized interface for triggering and monitoring workflows.
 """
 
 import asyncio
+import json
 import threading
 from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, List, Optional
@@ -69,6 +70,7 @@ class Riverflow:
         self._dag_locks: Dict[str, asyncio.Lock] = {}
         self._run_history: List[DAGRunHistory] = []
         self._current_runs: Dict[str, DAGRunHistory] = {}
+        self._active_runs: Dict[str, Dict[str, DAGRunHistory]] = {}
         self._update_callbacks: List[Callable[[DAGRunHistory], None]] = []
         self._run_counter = 0
         self._scheduler = None
@@ -95,6 +97,8 @@ class Riverflow:
             dag: The DAG to register
             auto_schedule: If True and DAG has a schedule, automatically schedule it
         """
+        dag._validate()
+
         if dag.dag_id in self._dags:
             self.logger.warning(f"DAG '{dag.dag_id}' already registered, updating...")
 
@@ -178,13 +182,13 @@ class Riverflow:
         dag = self._dags[dag_id]
         dag_lock = self._dag_locks[dag_id]
 
-        # Check if DAG is already running
-        if not force:
-            if dag_lock.locked():
-                self.logger.info(
-                    f"DAG '{dag_id}' is already running. Skipping trigger."
-                )
-                return None
+        # A background run is registered before it acquires the lock, so the
+        # active-run registry closes the rapid double-trigger race.
+        if not force and self.is_running(dag_id):
+            self.logger.info(
+                f"DAG '{dag_id}' is already running. Skipping trigger."
+            )
+            return None
 
         context = self._build_run_context(
             dag_id=dag.dag_id,
@@ -200,12 +204,15 @@ class Riverflow:
         run_history = self._create_run_history(dag.dag_id, run_context=context)
 
         if wait:
-            # Execute synchronously with lock
+            if force:
+                return await self._execute_dag(dag, run_history)
             async with dag_lock:
                 return await self._execute_dag(dag, run_history)
         else:
-            # Execute in background, return RUNNING state immediately
-            asyncio.create_task(self._execute_dag_with_lock(dag, run_history))
+            if force:
+                asyncio.create_task(self._execute_dag(dag, run_history))
+            else:
+                asyncio.create_task(self._execute_dag_with_lock(dag, run_history))
             self.logger.info(f"DAG '{dag_id}' triggered in background")
             return run_history
 
@@ -221,7 +228,7 @@ class Riverflow:
         run_context: RunContext | None = None,
     ) -> RunContext:
         if run_context is None:
-            return RunContext(
+            context = RunContext(
                 dag_id=dag_id,
                 trigger_source=trigger_source,
                 trigger_mode=trigger_mode,
@@ -229,20 +236,29 @@ class Riverflow:
                 metadata=metadata or {},
                 force=force,
             )
+        else:
+            merged_metadata = dict(run_context.metadata)
+            if metadata:
+                merged_metadata.update(metadata)
+            context = RunContext(
+                dag_id=run_context.dag_id or dag_id,
+                run_id=run_context.run_id,
+                task_id=run_context.task_id,
+                trigger_source=run_context.trigger_source or trigger_source,
+                trigger_mode=run_context.trigger_mode or trigger_mode,
+                requested_by=run_context.requested_by or requested_by,
+                metadata=merged_metadata,
+                force=run_context.force or force,
+            )
 
-        merged_metadata = dict(run_context.metadata)
-        if metadata:
-            merged_metadata.update(metadata)
-        return RunContext(
-            dag_id=run_context.dag_id or dag_id,
-            run_id=run_context.run_id,
-            task_id=run_context.task_id,
-            trigger_source=run_context.trigger_source or trigger_source,
-            trigger_mode=run_context.trigger_mode or trigger_mode,
-            requested_by=run_context.requested_by or requested_by,
-            metadata=merged_metadata,
-            force=run_context.force or force,
-        )
+        try:
+            json.dumps(context.metadata)
+        except (TypeError, ValueError, RecursionError) as error:
+            raise ValueError(
+                f"Metadata for DAG '{dag_id}' must be JSON-serializable. "
+                "Use strings, numbers, booleans, null, lists, and string-keyed objects."
+            ) from error
+        return context
 
     def _create_run_history(
         self,
@@ -270,6 +286,7 @@ class Riverflow:
             start_time=datetime.now(),
             run_context=context,
         )
+        self._active_runs.setdefault(dag_id, {})[run_id] = run_history
         self._current_runs[dag_id] = run_history
         self._run_history.append(run_history)
         self._notify_update(run_history)
@@ -331,9 +348,7 @@ class Riverflow:
             self.logger.error(f"DAG '{dag.dag_id}' execution failed: {e}")
 
         finally:
-            # Remove from current runs
-            if dag.dag_id in self._current_runs:
-                del self._current_runs[dag.dag_id]
+            self._finish_active_run(dag.dag_id, run_history.run_id)
 
             # Persist to SQLite
             await self._persist_run(run_history)
@@ -408,7 +423,20 @@ class Riverflow:
             if riverflow.is_running("my_dag"):
                 print("DAG is busy")
         """
-        return dag_id in self._current_runs
+        return bool(self._active_runs.get(dag_id))
+
+    def _finish_active_run(self, dag_id: str, run_id: str) -> None:
+        """Remove one active run without hiding concurrent forced runs."""
+        active = self._active_runs.get(dag_id)
+        if not active:
+            self._current_runs.pop(dag_id, None)
+            return
+        active.pop(run_id, None)
+        if active:
+            self._current_runs[dag_id] = next(reversed(active.values()))
+        else:
+            self._active_runs.pop(dag_id, None)
+            self._current_runs.pop(dag_id, None)
 
     def get_dag_stats(self, dag_id: str) -> Dict:
         """
@@ -462,6 +490,17 @@ class Riverflow:
         Returns:
             Number of records cleared
         """
+        if dag_id and self.is_running(dag_id):
+            raise RuntimeError(
+                f"Cannot clear history for DAG '{dag_id}' while it is running. "
+                "Wait for the active run to finish and try again."
+            )
+        if dag_id is None and self._active_runs:
+            raise RuntimeError(
+                "Cannot clear all history while DAGs are running. "
+                "Wait for active runs to finish and try again."
+            )
+
         if dag_id:
             before = len(self._run_history)
             self._run_history = [h for h in self._run_history if h.dag_id != dag_id]
@@ -470,6 +509,7 @@ class Riverflow:
             cleared = len(self._run_history)
             self._run_history.clear()
 
+        self._log_store.clear_runs(dag_id)
         self.logger.info(f"Cleared {cleared} history record(s)")
         return cleared
 
@@ -508,7 +548,7 @@ class Riverflow:
                     try:
                         task_states[tid] = TaskState(sval)
                     except ValueError:
-                        task_states[tid] = TaskState.PENDING
+                        task_states[tid] = TaskState.NONE
 
                 self._run_history.append(
                     DAGRunHistory(
@@ -608,6 +648,12 @@ class Riverflow:
                 f"Task '{task_id}' not found in DAG '{dag_id}'"
             )
 
+        if self.is_running(dag_id):
+            self.logger.info(
+                f"DAG '{dag_id}' is already running. Skipping task trigger."
+            )
+            return None
+
         context = self._build_run_context(
             dag_id=dag_id,
             metadata=metadata,
@@ -679,6 +725,7 @@ class Riverflow:
             )
 
         finally:
+            self._finish_active_run(dag_id, run_history.run_id)
             await self._persist_run(run_history)
             self._notify_update(run_history)
 

@@ -9,6 +9,7 @@ one-liners. The low-level pieces in :mod:`riverflow.core` and
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import importlib.util
 import sys
 import webbrowser
@@ -50,7 +51,8 @@ def _load_dags_from_path(path: Path) -> list[DAG]:
     if path.suffix != ".py":
         raise ValueError(f"Expected a .py file, got: {path}")
 
-    module_name = f"_riverflow_user_{path.stem}"
+    path_digest = hashlib.sha256(str(path).encode()).hexdigest()[:12]
+    module_name = f"_riverflow_user_{path.stem}_{path_digest}"
     spec = importlib.util.spec_from_file_location(module_name, path)
     if spec is None or spec.loader is None:
         raise ImportError(f"Could not load module from {path}")
@@ -58,14 +60,23 @@ def _load_dags_from_path(path: Path) -> list[DAG]:
     module = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = module
     # Make sibling imports work (e.g. `from helpers import foo` in user's file)
+    original_sys_path = sys.path[:]
     sys.path.insert(0, str(path.parent))
     try:
         spec.loader.exec_module(module)
+    except BaseException:
+        if sys.modules.get(module_name) is module:
+            del sys.modules[module_name]
+        raise
     finally:
-        if sys.path and sys.path[0] == str(path.parent):
-            sys.path.pop(0)
+        sys.path[:] = original_sys_path
 
-    dags = [v for v in vars(module).values() if isinstance(v, DAG)]
+    dags = []
+    seen = set()
+    for value in vars(module).values():
+        if isinstance(value, DAG) and id(value) not in seen:
+            seen.add(id(value))
+            dags.append(value)
     if not dags:
         raise ValueError(
             f"No DAG instances found in {path}. "
@@ -177,6 +188,16 @@ def run(
     Returns:
         The final :class:`DAGRunHistory` for the run.
     """
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        pass
+    else:
+        raise RuntimeError(
+            "run() cannot be called while an asyncio event loop is running. "
+            "Use `await Riverflow.get_instance().trigger(dag.dag_id)` in async code."
+        )
+
     if setup_logging:
         from .server.setup import setup_unified_logging
 

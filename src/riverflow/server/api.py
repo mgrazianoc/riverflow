@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field
 from ..core.riverflow import Riverflow, get_logger, DAGRunHistory
 from ..models import (
     APIInfoModel,
+    ClearHistoryModel,
     DAGGraphModel,
     DAGModel,
     DAGRunModel,
@@ -167,10 +168,7 @@ class RiverFlowAPI:
         self, limit: int = 100, dag_id: Optional[str] = None
     ) -> list[DAGRunModel]:
         """Get DAG execution history"""
-        history = self.riverflow.get_history(limit=limit)
-
-        if dag_id:
-            history = [run for run in history if run.dag_id == dag_id]
+        history = self.riverflow.get_history(dag_id=dag_id, limit=limit)
 
         return [run_to_model(run) for run in history]
 
@@ -197,6 +195,10 @@ class RiverFlowAPI:
                     detail=f"DAG '{dag_id}' is already running",
                 )
             return run_to_model(result)
+        except HTTPException:
+            raise
+        except ValueError as e:
+            raise HTTPException(status_code=404, detail=str(e)) from e
         except Exception as e:
             self.logger.error(f"Failed to trigger DAG {dag_id}: {e}")
             raise HTTPException(status_code=500, detail=str(e))
@@ -225,6 +227,10 @@ class RiverFlowAPI:
                     detail=f"DAG '{dag_id}' is already running",
                 )
             return run_to_model(result)
+        except HTTPException:
+            raise
+        except ValueError as e:
+            raise HTTPException(status_code=404, detail=str(e)) from e
         except Exception as e:
             self.logger.error(
                 f"Failed to trigger task {task_id} in DAG {dag_id}: {e}"
@@ -238,12 +244,15 @@ class RiverFlowAPI:
         raw_logs = await self.riverflow.get_task_logs_async(run_id, task_id)
         return logs_to_model(run_id, task_id, raw_logs)
 
-    async def clear_dag_history(self, dag_id: str) -> Dict[str, Any]:
+    async def clear_dag_history(self, dag_id: str) -> ClearHistoryModel:
         """Clear stored run history for a DAG."""
         if self.riverflow.get_dag(dag_id) is None:
             raise HTTPException(status_code=404, detail=f"Unknown DAG: {dag_id}")
-        cleared = self.riverflow.clear_history(dag_id=dag_id)
-        return {"dag_id": dag_id, "cleared": cleared}
+        try:
+            cleared = self.riverflow.clear_history(dag_id=dag_id)
+        except RuntimeError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        return ClearHistoryModel(dag_id=dag_id, cleared=cleared)
 
     async def get_run_timing(self, run_id: str) -> RunTimingModel:
         """Get per-task timing derived from log timestamps."""

@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class StatusModel(BaseModel):
@@ -19,7 +19,14 @@ class APIInfoModel(BaseModel):
 
     name: str = "RiverFlow API"
     version: str = "1.0.0"
-    endpoints: dict[str, str] = {}
+    endpoints: dict[str, str] = Field(default_factory=dict)
+
+
+class ClearHistoryModel(BaseModel):
+    """Result of deleting one DAG's persisted history."""
+
+    dag_id: str
+    cleared: int
 
 
 class ScheduledDAGModel(BaseModel):
@@ -38,4 +45,4 @@ class DashboardModel(BaseModel):
     total_runs: int = 0
     recent_failures: int = 0
     overall_success_rate: float = 0.0
-    scheduled_dags: list[ScheduledDAGModel] = []
+    scheduled_dags: list[ScheduledDAGModel] = Field(default_factory=list)

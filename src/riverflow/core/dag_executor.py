@@ -123,6 +123,24 @@ class DAGExecutor:
 
         return False
 
+    @staticmethod
+    def _is_terminal(state: TaskState) -> bool:
+        return state in {
+            TaskState.SUCCESS,
+            TaskState.FAILED,
+            TaskState.SKIPPED,
+            TaskState.UPSTREAM_FAILED,
+            TaskState.TIMEOUT,
+        }
+
+    def _upstreams_are_terminal(
+        self, task: Task, states: dict[str, TaskState]
+    ) -> bool:
+        return all(
+            self._is_terminal(states.get(upstream.task_id, TaskState.NONE))
+            for upstream in task.upstream_tasks
+        )
+
     async def run(self):
         """Execute the DAG using event-driven approach"""
         if not self.dag._validated:
@@ -138,79 +156,81 @@ class DAGExecutor:
         running_tasks: dict[asyncio.Task, Task] = {}
         dag_failed = False
 
-        # Start initial tasks (no dependencies)
-        ready_tasks = self._get_ready_tasks(states)
-        for task in ready_tasks:
-            await self._start_task(task, running_tasks, states)
+        while True:
+            for task in self._get_ready_tasks(states):
+                await self._start_task(task, running_tasks, states)
 
-        # Event loop: wait for tasks to complete and start new ones
-        while running_tasks:
-            # Wait for at least one task to complete
-            done_asyncio_tasks, pending = await asyncio.wait(
-                running_tasks.keys(), return_when=asyncio.FIRST_COMPLETED
-            )
-
-            # Process completed tasks
-            for asyncio_task in done_asyncio_tasks:
-                task = running_tasks.pop(asyncio_task)
-
-                try:
-                    result = asyncio_task.result()
-
-                    if isinstance(result, Exception):
-                        states[task.task_id] = TaskState.FAILED
-                        self._notify_state_change(task.task_id, TaskState.FAILED)
-                        self.logger.error(f"Task {task.task_id} failed: {result}")
-                        dag_failed = True
-                    else:
+            if running_tasks:
+                done_asyncio_tasks, _ = await asyncio.wait(
+                    running_tasks.keys(), return_when=asyncio.FIRST_COMPLETED
+                )
+                for asyncio_task in done_asyncio_tasks:
+                    task = running_tasks.pop(asyncio_task)
+                    try:
+                        result = asyncio_task.result()
                         states[task.task_id] = result.state
                         self._notify_state_change(task.task_id, result.state)
                         self.logger.debug(
                             f"Task {task.task_id} completed: {result.state.value}"
                         )
-
-                        if result.state == TaskState.FAILED:
+                        if result.state in {TaskState.FAILED, TaskState.TIMEOUT}:
                             dag_failed = True
+                    except Exception as e:
+                        states[task.task_id] = TaskState.FAILED
+                        self._notify_state_change(task.task_id, TaskState.FAILED)
+                        self.logger.error(f"Unexpected error in task {task.task_id}: {e}")
+                        dag_failed = True
+                continue
 
-                except Exception as e:
-                    states[task.task_id] = TaskState.FAILED
-                    self._notify_state_change(task.task_id, TaskState.FAILED)
-                    self.logger.error(f"Unexpected error in task {task.task_id}: {e}")
-                    dag_failed = True
+            unresolved = [
+                task
+                for task in self.dag.tasks.values()
+                if states[task.task_id] == TaskState.NONE
+            ]
+            if not unresolved:
+                break
 
-                # Check for newly ready tasks after this completion
-                ready_tasks = self._get_ready_tasks(states)
-                for ready_task in ready_tasks:
-                    await self._start_task(ready_task, running_tasks, states)
+            blocked = [
+                task
+                for task in unresolved
+                if self._upstreams_are_terminal(task, states)
+            ]
+            if not blocked:
+                # Validation should make this unreachable, but avoid silently
+                # returning a partially executed DAG if it is mutated later.
+                raise DAGNotReadyError(
+                    self.dag.dag_id,
+                    "no remaining task can make progress; validate dependencies again",
+                )
 
-        # Handle tasks that were skipped or failed upstream
-        for task_id, task in self.dag.tasks.items():
-            if states[task_id] == TaskState.NONE:
-                # Task never ran - determine why
+            for task in blocked:
                 failed_upstream = [
-                    t.task_id
-                    for t in task.upstream_tasks
-                    if states.get(t.task_id)
+                    upstream.task_id
+                    for upstream in task.upstream_tasks
+                    if states.get(upstream.task_id)
                     in {
                         TaskState.FAILED,
                         TaskState.UPSTREAM_FAILED,
                         TaskState.TIMEOUT,
                     }
                 ]
-
+                state = (
+                    TaskState.UPSTREAM_FAILED
+                    if failed_upstream
+                    else TaskState.SKIPPED
+                )
+                states[task.task_id] = state
+                self._notify_state_change(task.task_id, state)
                 if failed_upstream:
-                    states[task_id] = TaskState.UPSTREAM_FAILED
-                    self._notify_state_change(task_id, TaskState.UPSTREAM_FAILED)
                     self.logger.warning(
-                        f"Skipped {task_id}: upstream failed ({', '.join(failed_upstream)})"
+                        f"Skipped {task.task_id}: upstream failed "
+                        f"({', '.join(failed_upstream)})"
                     )
                 else:
-                    states[task_id] = TaskState.SKIPPED
-                    self._notify_state_change(task_id, TaskState.SKIPPED)
-                    self.logger.info(f"Skipped {task_id}: trigger rule not met")
-
-                # Execute on_skip callback
-                await self._execute_skip_callback(task, states[task_id])
+                    self.logger.info(
+                        f"Skipped {task.task_id}: trigger rule not met"
+                    )
+                await self._execute_skip_callback(task, state)
 
         # Print summary
         status = "FAILED" if dag_failed else "COMPLETED"
@@ -237,7 +257,9 @@ class DAGExecutor:
                 continue
 
             # Check if task should run based on trigger rules
-            if self._should_task_run(task, states):
+            if self._upstreams_are_terminal(task, states) and self._should_task_run(
+                task, states
+            ):
                 ready_tasks.append(task)
 
         return ready_tasks

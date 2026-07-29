@@ -1,10 +1,12 @@
 """Tests for DAGExecutor with run_id / log_store forwarding."""
 
+import asyncio
+
 from riverflow.core.dag import DAG, DAGRunState
 from riverflow.core.dag_executor import DAGExecutor
 from riverflow.core.log_store import LogStore
 from riverflow.core.logger import get_task_logger, get_logger, task_event
-from riverflow.core.task import TaskState
+from riverflow.core.task import TaskState, TriggerRule
 
 
 # Module-level logger — mirrors the pattern used in ETL tasks
@@ -119,3 +121,54 @@ class TestDAGExecutorLogging:
         assert any("END" in m for m in messages)
         # module-level logger emits "extracting data"
         assert any("extracting data" in m for m in messages)
+
+
+class TestDAGExecutorTriggerRules:
+    async def test_none_failed_waits_for_upstream_completion(self):
+        release = asyncio.Event()
+        downstream_started = asyncio.Event()
+
+        with DAG("ordering") as dag:
+            @dag.task("upstream")
+            async def upstream():
+                await release.wait()
+
+            @dag.task("downstream", trigger_rule=TriggerRule.NONE_FAILED)
+            async def downstream():
+                downstream_started.set()
+
+            upstream >> downstream
+
+        execution = asyncio.create_task(DAGExecutor(dag).run())
+        await asyncio.sleep(0)
+        assert not downstream_started.is_set()
+
+        release.set()
+        states = await execution
+        assert downstream_started.is_set()
+        assert states["downstream"] == TaskState.SUCCESS
+
+    async def test_skipped_state_can_unlock_downstream_trigger_rule(self):
+        ran = False
+
+        with DAG("skip_chain") as dag:
+            @dag.task("root")
+            async def root():
+                pass
+
+            @dag.task("expects_failure", trigger_rule=TriggerRule.ALL_FAILED)
+            async def expects_failure():
+                raise AssertionError("must be skipped")
+
+            @dag.task("after_skip", trigger_rule=TriggerRule.ALL_SKIPPED)
+            async def after_skip():
+                nonlocal ran
+                ran = True
+
+            root >> expects_failure >> after_skip
+
+        states = await DAGExecutor(dag).run()
+
+        assert states["expects_failure"] == TaskState.SKIPPED
+        assert states["after_skip"] == TaskState.SUCCESS
+        assert ran is True

@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .task import TaskModel, TaskStateEnum, TriggerRuleEnum
 
@@ -27,7 +27,7 @@ class DAGModel(BaseModel):
     description: Optional[str] = None
     timezone: str = "UTC"
     is_running: bool = False
-    tasks: list[TaskModel] = []
+    tasks: list[TaskModel] = Field(default_factory=list)
     total_runs: int = 0
     success_count: int = 0
     failed_count: int = 0
@@ -66,8 +66,8 @@ class DAGGraphModel(BaseModel):
     dag_id: str
     is_running: bool = False
     run_id: Optional[str] = None
-    nodes: list[DAGNodeModel] = []
-    edges: list[DAGEdgeModel] = []
+    nodes: list[DAGNodeModel] = Field(default_factory=list)
+    edges: list[DAGEdgeModel] = Field(default_factory=list)
     graph_width: float = 0.0
     graph_height: float = 0.0
     timestamp: datetime

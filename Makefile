@@ -1,4 +1,4 @@
-.PHONY: help install dev typecheck build-ui watch-ui lint test check
+.PHONY: help install dev typecheck build-ui watch-ui lint test check bump-version
 
 help:  ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | \
@@ -25,6 +25,10 @@ watch-ui:  ## Start Vite dev server with HMR
 
 generate-types:  ## Generate TS types from running OpenAPI (server must be up)
 	cd ui && npm run generate-types
+
+bump-version:  ## Set backend + frontend version (VERSION=X.Y.Z)
+	@test -n "$(VERSION)" || (echo "Usage: make bump-version VERSION=X.Y.Z" && exit 2)
+	python3 scripts/bump_version.py "$(VERSION)"
 
 # ── Quality ──────────────────────────────────────────
 

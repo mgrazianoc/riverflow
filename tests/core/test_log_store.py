@@ -109,3 +109,22 @@ class TestDagRunsCRUD:
 
         runs = log_store.get_runs()
         assert [r["run_id"] for r in runs] == ["late", "mid", "early"]
+
+    def test_clear_runs_removes_only_target_dag_and_its_logs(
+        self, log_store: LogStore
+    ):
+        now = datetime.now()
+        for run_id, dag_id in (("a1", "dag_a"), ("b1", "dag_b")):
+            log_store.save_run(run_id, dag_id, "success", now, now, {}, None)
+            log_store.save_task_logs(
+                run_id,
+                dag_id,
+                "task",
+                [{"timestamp": "t", "level": "INFO", "message": dag_id}],
+            )
+
+        assert log_store.clear_runs("dag_a") == 1
+        assert log_store.get_run("a1") is None
+        assert log_store.get_task_logs("a1") == []
+        assert log_store.get_run("b1") is not None
+        assert len(log_store.get_task_logs("b1")) == 1

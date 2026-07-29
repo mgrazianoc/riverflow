@@ -97,7 +97,11 @@ class TestTriggerEndpoints:
 
     async def test_trigger_unknown_dag(self, client: AsyncClient):
         resp = await client.put("/api/dags/nonexistent/trigger")
-        assert resp.status_code == 500
+        assert resp.status_code == 404
+
+    async def test_trigger_unknown_task(self, client: AsyncClient):
+        resp = await client.put("/api/dags/test_dag/tasks/nonexistent/trigger")
+        assert resp.status_code == 404
 
 
 class TestHistoryEndpoint:
@@ -127,6 +131,41 @@ class TestHistoryEndpoint:
 
         resp2 = await client.get("/api/history?dag_id=other")
         assert len(resp2.json()) == 0
+
+    async def test_history_applies_dag_filter_before_limit(
+        self, client: AsyncClient, riverflow: Riverflow
+    ):
+        await riverflow.trigger("test_dag")
+        with DAG("newer_dag") as newer:
+            @newer.task("task")
+            async def task():
+                pass
+        riverflow.register_dag(newer)
+        await riverflow.trigger("newer_dag")
+
+        resp = await client.get("/api/history?dag_id=test_dag&limit=1")
+
+        assert resp.status_code == 200
+        assert len(resp.json()) == 1
+        assert resp.json()[0]["dag_id"] == "test_dag"
+
+    async def test_clear_history_while_running_returns_conflict(
+        self, client: AsyncClient, riverflow: Riverflow
+    ):
+        release = asyncio.Event()
+        with DAG("slow_dag") as dag:
+            @dag.task("wait")
+            async def wait():
+                await release.wait()
+        riverflow.register_dag(dag)
+        await client.put("/api/dags/slow_dag/trigger")
+
+        resp = await client.delete("/api/dags/slow_dag/history")
+
+        assert resp.status_code == 409
+        release.set()
+        while riverflow.is_running("slow_dag"):
+            await asyncio.sleep(0)
 
 
 class TestRunLogsEndpoint:

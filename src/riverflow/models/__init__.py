@@ -10,7 +10,13 @@ from .dag import DAGModel, DAGSummaryModel, DAGGraphModel, DAGNodeModel, DAGEdge
 from .task import TaskModel, TaskStateEnum, TriggerRuleEnum
 from .run import DAGRunModel, DAGRunStateEnum, TaskRunModel
 from .log import LogEntryModel, TaskLogsModel, RunTimingModel, TaskTimingEntry
-from .status import StatusModel, APIInfoModel, ScheduledDAGModel, DashboardModel
+from .status import (
+    StatusModel,
+    APIInfoModel,
+    ClearHistoryModel,
+    ScheduledDAGModel,
+    DashboardModel,
+)
 from .host import HostMetricsModel, HostSamplePoint
 
 __all__ = [
@@ -36,6 +42,7 @@ __all__ = [
     # Status
     "StatusModel",
     "APIInfoModel",
+    "ClearHistoryModel",
     "ScheduledDAGModel",
     "DashboardModel",
     # Host

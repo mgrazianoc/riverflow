@@ -1,5 +1,10 @@
 """Tests for the Riverflow orchestration engine (trigger, trigger_task, history, logs)."""
 
+import asyncio
+from datetime import datetime
+
+import pytest
+
 from riverflow.core.dag import DAG, DAGRunState
 from riverflow.core.logger import get_task_logger
 from riverflow.core.riverflow import Riverflow
@@ -82,6 +87,71 @@ class TestRiverflowTrigger:
         assert history[0].run_context.trigger_source == "schedule"
         assert history[0].run_context.trigger_mode == "scheduled"
 
+    async def test_rapid_background_retrigger_is_rejected(self, riverflow: Riverflow):
+        release = asyncio.Event()
+
+        with DAG("background_lock") as dag:
+            @dag.task("wait")
+            async def wait():
+                await release.wait()
+
+        riverflow.register_dag(dag)
+        first = await riverflow.trigger("background_lock", wait=False)
+        second = await riverflow.trigger("background_lock", wait=False)
+
+        assert first is not None
+        assert second is None
+        release.set()
+        while riverflow.is_running("background_lock"):
+            await asyncio.sleep(0)
+
+    async def test_force_runs_execute_concurrently_and_track_activity(
+        self, riverflow: Riverflow
+    ):
+        release = asyncio.Event()
+        both_started = asyncio.Event()
+        active = 0
+
+        with DAG("forced") as dag:
+            @dag.task("wait")
+            async def wait():
+                nonlocal active
+                active += 1
+                if active == 2:
+                    both_started.set()
+                await release.wait()
+                active -= 1
+
+        riverflow.register_dag(dag)
+        first = asyncio.create_task(riverflow.trigger("forced", force=True))
+        second = asyncio.create_task(riverflow.trigger("forced", force=True))
+
+        await asyncio.wait_for(both_started.wait(), timeout=1)
+        assert riverflow.is_running("forced")
+        release.set()
+        await asyncio.gather(first, second)
+        assert not riverflow.is_running("forced")
+
+    async def test_invalid_metadata_is_rejected_before_task_execution(
+        self, riverflow: Riverflow
+    ):
+        executed = False
+
+        with DAG("metadata_validation") as dag:
+            @dag.task("task")
+            async def task():
+                nonlocal executed
+                executed = True
+
+        riverflow.register_dag(dag)
+        with pytest.raises(ValueError, match="JSON-serializable"):
+            await riverflow.trigger(
+                "metadata_validation", metadata={"invalid": object()}
+            )
+
+        assert executed is False
+        assert riverflow.get_history() == []
+
 
 class TestRiverflowTriggerTask:
     async def test_single_task_trigger(self, riverflow: Riverflow, simple_dag: DAG):
@@ -136,6 +206,15 @@ class TestRiverflowTriggerTask:
 
         assert result.run_context.metadata == {"debug": True}
         assert observed == {"task_id": "inspect_context", "metadata": {"debug": True}}
+
+    async def test_single_task_trigger_clears_running_state(
+        self, riverflow: Riverflow, simple_dag: DAG
+    ):
+        riverflow.register_dag(simple_dag)
+
+        await riverflow.trigger_task("test_dag", "step_a")
+
+        assert not riverflow.is_running("test_dag")
 
 
 class TestRiverflowLogCapture:
@@ -253,3 +332,31 @@ class TestRiverflowHistory:
         r2 = await riverflow.trigger("test_dag")
 
         assert r1.run_id != r2.run_id
+
+    async def test_clear_history_removes_persisted_runs_and_logs(
+        self, riverflow: Riverflow, simple_dag: DAG
+    ):
+        riverflow.register_dag(simple_dag)
+        result = await riverflow.trigger("test_dag")
+
+        assert riverflow.clear_history("test_dag") == 1
+        assert riverflow.log_store.get_run(result.run_id) is None
+        assert riverflow.get_task_logs(result.run_id) == []
+
+    def test_rehydrate_unknown_task_state_falls_back_to_none(
+        self, riverflow: Riverflow
+    ):
+        riverflow.log_store.save_run(
+            "future-run",
+            "future-dag",
+            "success",
+            datetime.now(),
+            datetime.now(),
+            {"task": "future-state"},
+            None,
+        )
+        riverflow._run_history = []
+
+        riverflow._rehydrate_history()
+
+        assert riverflow.get_history()[0].task_states["task"] == TaskState.NONE

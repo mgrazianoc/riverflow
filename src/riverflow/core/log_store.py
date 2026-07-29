@@ -216,6 +216,28 @@ class LogStore:
         d["force"] = bool(d.get("force", False))
         return d
 
+    def clear_runs(self, dag_id: Optional[str] = None) -> int:
+        """Delete persisted runs and their task logs."""
+        conn = self._get_conn()
+        if dag_id is None:
+            count = conn.execute("SELECT COUNT(*) FROM dag_runs").fetchone()[0]
+            conn.execute("DELETE FROM task_logs")
+            conn.execute("DELETE FROM dag_runs")
+        else:
+            count = conn.execute(
+                "SELECT COUNT(*) FROM dag_runs WHERE dag_id = ?", (dag_id,)
+            ).fetchone()[0]
+            conn.execute(
+                "DELETE FROM task_logs WHERE run_id IN "
+                "(SELECT run_id FROM dag_runs WHERE dag_id = ?)",
+                (dag_id,),
+            )
+            # Also remove orphaned logs produced before a run record was saved.
+            conn.execute("DELETE FROM task_logs WHERE dag_id = ?", (dag_id,))
+            conn.execute("DELETE FROM dag_runs WHERE dag_id = ?", (dag_id,))
+        conn.commit()
+        return int(count)
+
     def get_task_timing(self, run_id: str) -> List[Dict[str, Any]]:
         """Get per-task start/end timestamps derived from log entries."""
         conn = self._get_conn()

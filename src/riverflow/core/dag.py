@@ -119,8 +119,7 @@ class DAG:
         if not self.tasks:
             raise EmptyDAGError(self.dag_id)
 
-        # Check for cycles
-        self._check_cycles()
+        self._check_task_configuration()
 
         # Check for self-dependencies
         self._check_self_dependencies()
@@ -128,7 +127,34 @@ class DAG:
         # Check that all upstream tasks exist in this DAG
         self._check_upstream_tasks_exist()
 
+        # Check for cycles only after dependency references are known to be safe.
+        self._check_cycles()
+
         self._validated = True
+
+    def _check_task_configuration(self):
+        """Reject values that would skip execution or break retry handling."""
+        for task_id, task in self.tasks.items():
+            if not isinstance(task.retries, int) or isinstance(task.retries, bool):
+                raise TypeError(
+                    f"Task '{task_id}' in DAG '{self.dag_id}' has a non-integer "
+                    "`retries` value. Pass a whole number greater than or equal to zero."
+                )
+            if task.retries < 0:
+                raise ValueError(
+                    f"Task '{task_id}' in DAG '{self.dag_id}' has retries={task.retries}. "
+                    "`retries` must be greater than or equal to zero."
+                )
+            if task.timeout is not None and task.timeout.total_seconds() <= 0:
+                raise ValueError(
+                    f"Task '{task_id}' in DAG '{self.dag_id}' has a non-positive "
+                    "`timeout`. Pass a duration greater than zero or use None."
+                )
+            if task.retry_delay.total_seconds() < 0:
+                raise ValueError(
+                    f"Task '{task_id}' in DAG '{self.dag_id}' has a negative "
+                    "`retry_delay`. Pass a duration greater than or equal to zero."
+                )
 
     def _check_cycles(self):
         """Detect cycles using DFS with path tracking"""
@@ -171,7 +197,7 @@ class DAG:
         """Verify all upstream tasks are in this DAG"""
         for task_id, task in self.tasks.items():
             for upstream in task.upstream_tasks:
-                if upstream.task_id not in self.tasks:
+                if self.tasks.get(upstream.task_id) is not upstream:
                     raise UnknownUpstreamTaskError(
                         self.dag_id, task_id, upstream.task_id
                     )

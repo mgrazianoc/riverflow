@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class TaskStateEnum(str, Enum):
@@ -35,4 +35,4 @@ class TaskModel(BaseModel):
     retries: int = 0
     retry_delay_seconds: float = 5.0
     timeout_seconds: Optional[float] = None
-    upstream_task_ids: list[str] = []
+    upstream_task_ids: list[str] = Field(default_factory=list)

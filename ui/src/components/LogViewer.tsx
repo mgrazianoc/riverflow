@@ -94,7 +94,7 @@ export function LogViewer({ logs, loading, streaming, className }: LogViewerProp
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search logs…"
-            className="w-full rounded-md border border-border bg-bg py-1 pl-7 pr-7 text-xs text-ink placeholder:text-ink-muted focus:border-accent focus:outline-none"
+            className="w-full rounded-md border border-border bg-bg py-1.5 pr-7 pl-7 text-xs text-ink placeholder:text-ink-muted focus:border-accent focus:outline-none"
           />
           {search && (
             <button
@@ -118,7 +118,7 @@ export function LogViewer({ logs, loading, streaming, className }: LogViewerProp
               onClick={() => toggleLevel(level)}
               aria-pressed={levelFilter.has(level)}
               className={cn(
-                'rounded-md px-1.5 py-0.5 text-[10px] font-medium transition-colors',
+                'rounded-md px-1.5 py-0.5 text-[11px] font-medium transition-colors',
                 levelFilter.size === 0 || levelFilter.has(level)
                   ? cn(LEVEL_COLORS[level] ?? 'text-ink-muted', 'bg-bg-surface')
                   : 'text-ink-muted/40 bg-transparent',
@@ -130,7 +130,7 @@ export function LogViewer({ logs, loading, streaming, className }: LogViewerProp
         </div>
 
         {/* Count */}
-        <span className="text-[10px] tabular-nums text-ink-muted">
+        <span className="text-[11px] tabular-nums text-ink-muted">
           {filtered.length}/{logs.length}
         </span>
       </div>
@@ -151,12 +151,12 @@ export function LogViewer({ logs, loading, streaming, className }: LogViewerProp
               <div
                 key={i}
                 className={cn(
-                  'px-3 py-1.5 transition-colors hover:bg-bg-hover',
+                  'px-3 py-2 transition-colors hover:bg-bg-hover',
                   LEVEL_BG[entry.level],
                 )}
               >
                 {/* Meta line: timestamp · LEVEL · task */}
-                <div className="flex items-baseline gap-2 font-mono text-[10px] leading-tight">
+                <div className="flex items-baseline gap-2 font-mono text-[11px] leading-tight">
                   <span className="shrink-0 text-ink-muted/50 select-none">
                     {entry.timestamp.slice(11, 23)}
                   </span>
@@ -166,7 +166,7 @@ export function LogViewer({ logs, loading, streaming, className }: LogViewerProp
                   <span className="shrink-0 text-accent/70">{entry.task_id}</span>
                 </div>
                 {/* Message */}
-                <div className="mt-0.5 font-mono text-[11px] leading-relaxed text-ink-secondary wrap-break-word whitespace-pre-wrap">
+                <div className="mt-0.5 font-mono text-[12px] leading-relaxed text-ink-secondary wrap-break-word whitespace-pre-wrap">
                   <HighlightedMessage message={entry.message} search={search} />
                 </div>
               </div>
@@ -183,7 +183,7 @@ export function LogViewer({ logs, loading, streaming, className }: LogViewerProp
             setAutoScroll(true)
             scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
           }}
-          className="absolute right-3 bottom-3 flex items-center gap-1 rounded-md border border-ink bg-ink px-2.5 py-1 text-[10px] font-medium text-bg shadow-sm shadow-ink/20 transition-colors hover:border-accent hover:bg-accent"
+          className="absolute right-3 bottom-3 flex items-center gap-1 rounded-md border border-ink bg-ink px-2.5 py-1 text-[11px] font-medium text-bg shadow-sm shadow-ink/20 transition-colors hover:border-accent hover:bg-accent"
         >
           <ArrowDown size={10} />
           New logs

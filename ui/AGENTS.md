@@ -48,13 +48,13 @@
 Every top-level page follows the same broadsheet rhythm:
 
 ```tsx
-<div className="mx-auto max-w-7xl px-8 pt-10 pb-14">
+<div className="mx-auto max-w-[1440px] px-8 pt-10 pb-14">
   {/* Masthead row: date/back link on left, section label on right */}
   <div className="mb-6 flex items-center justify-between">
-    <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-muted">
+    <span className="font-mono text-[11px] uppercase tracking-[0.1em] text-ink-muted">
       {date or breadcrumb}
     </span>
-    <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-muted">
+    <span className="font-mono text-[11px] uppercase tracking-[0.1em] text-ink-muted">
       {SECTION_LABEL}
     </span>
   </div>
@@ -62,7 +62,7 @@ Every top-level page follows the same broadsheet rhythm:
   <div className="border-t border-ink" />
 
   {/* Hero headline in Fraunces */}
-  <h1 className="mt-8 font-display text-[32px] font-light leading-[1.05] tracking-[-0.015em] text-ink">
+  <h1 className="mt-8 font-display text-[32px] font-normal leading-[1.05] tracking-[-0.015em] text-ink">
     {Title}
   </h1>
 
@@ -74,7 +74,7 @@ Every top-level page follows the same broadsheet rhythm:
 enlarge it and give it a single color:
 
 ```tsx
-<h1 className="font-display text-[42px] font-light leading-[1.05] tracking-[-0.015em]">
+<h1 className="font-display text-[42px] font-normal leading-[1.05] tracking-[-0.015em]">
   <em className="not-italic text-error">{n}</em> failures in last 24h
 </h1>
 ```
@@ -86,7 +86,7 @@ enlarge it and give it a single color:
 ### Small-caps label (every section header, every column header)
 
 ```tsx
-<span className="font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-ink-muted">
+<span className="font-mono text-[11px] font-medium uppercase tracking-[0.1em] text-ink-muted">
   {label}
 </span>
 ```
@@ -94,7 +94,7 @@ enlarge it and give it a single color:
 ### Data cell (every table data column)
 
 ```tsx
-<td className="py-3 font-mono text-[11px] tabular-nums text-ink">
+<td className="py-3.5 font-mono text-[12px] tabular-nums text-ink">
   {value}
 </td>
 ```
@@ -102,7 +102,7 @@ enlarge it and give it a single color:
 ### Primary button
 
 ```tsx
-<button className="bg-ink text-bg px-3 py-1.5 text-[12px] font-medium transition-colors hover:bg-accent">
+<button className="bg-ink text-bg px-3 py-1.5 text-[13px] font-medium transition-colors hover:bg-accent">
   {Action}
 </button>
 ```
@@ -210,6 +210,15 @@ Rule of thumb: *"Would I paste this URL to a teammate?"* → URL state.
    wired through `useUrlState` or `useLocalStorage`.
 6. Run `npm run build` before committing — TypeScript strict is on.
 
+### Readability floor
+
+- Display headlines use weight 400 (`font-normal`), not 300.
+- Small-caps labels are at least 11px with `tracking-[0.1em]`.
+- Dense mono data is at least 12px; primary row labels are at least 14px.
+- `text-ink-muted` is supporting ink, not disabled ink. Keep it readable on paper.
+- Operational pages use up to 1440px so tables and charts earn the viewport.
+  Reading-heavy forms may stay narrower; graph-like views use the full canvas.
+
 ---
 
 ## 9. File map
@@ -251,6 +260,6 @@ ui/src/
 
 ---
 
-*Last substantive rewrite: the Broadsheet identity pass. If you find
+*Last substantive rewrite: the Broadsheet readability pass. If you find
 yourself wanting to add a gradient or a violet accent, close the
 branch and re-read this file.*

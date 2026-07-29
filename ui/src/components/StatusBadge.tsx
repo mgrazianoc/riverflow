@@ -26,7 +26,7 @@ export function StateBadge({ state, compact, className }: StateBadgeProps) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 text-[11px] tabular-nums',
+        'inline-flex items-center gap-1.5 text-[12px] tabular-nums',
         cfg.text,
         className,
       )}

@@ -86,15 +86,15 @@ export function TriggerRunDialog({ dagId, open, pending, onClose, onSubmit }: Tr
     >
       <div ref={dialogRef} className="mx-auto w-full max-w-2xl border border-ink bg-bg-raised">
         <div className="border-b border-border px-5 py-4">
-          <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-muted">Trigger run</div>
-          <h2 id="trigger-run-title" className="mt-2 font-display text-[28px] font-light leading-[1.05] tracking-[-0.015em] text-ink">
+          <div className="font-mono text-[11px] uppercase tracking-[0.1em] text-ink-muted">Trigger run</div>
+          <h2 id="trigger-run-title" className="mt-2 font-display text-[28px] font-normal leading-[1.05] tracking-[-0.015em] text-ink">
             {dagId}
           </h2>
         </div>
 
         <div className="space-y-5 px-5 py-5">
           <section>
-            <div className="mb-2 font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-ink-muted">
+            <div className="mb-2 font-mono text-[11px] font-medium uppercase tracking-[0.1em] text-ink-muted">
               Run mode metadata
             </div>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
@@ -110,8 +110,8 @@ export function TriggerRunDialog({ dagId, open, pending, onClose, onSubmit }: Tr
                       : 'border-border text-ink-secondary hover:border-ink',
                   ].join(' ')}
                 >
-                  <div className="text-[13px]">{preset.label}</div>
-                  <div className="mt-1 font-mono text-[10px] text-ink-muted">{preset.hint}</div>
+                  <div className="text-[14px]">{preset.label}</div>
+                  <div className="mt-1 font-mono text-[11px] text-ink-muted">{preset.hint}</div>
                 </button>
               ))}
             </div>
@@ -119,30 +119,30 @@ export function TriggerRunDialog({ dagId, open, pending, onClose, onSubmit }: Tr
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="block">
-              <span className="font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-ink-muted">
+              <span className="font-mono text-[11px] font-medium uppercase tracking-[0.1em] text-ink-muted">
                 Trigger mode
               </span>
               <input
                 value={triggerMode}
                 onChange={(e) => setTriggerMode(e.target.value)}
                 placeholder="manual, queue, debug..."
-                className="mt-1 w-full border border-border bg-bg px-2 py-1.5 font-mono text-[12px] text-ink placeholder:text-ink-muted focus:border-ink focus:outline-none"
+                className="mt-1 w-full border border-border bg-bg px-2 py-1.5 font-mono text-[13px] text-ink placeholder:text-ink-muted focus:border-ink focus:outline-none"
               />
             </label>
             <label className="block">
-              <span className="font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-ink-muted">
+              <span className="font-mono text-[11px] font-medium uppercase tracking-[0.1em] text-ink-muted">
                 Requested by
               </span>
               <input
                 value={requestedBy}
                 onChange={(e) => setRequestedBy(e.target.value)}
                 placeholder="operator or system"
-                className="mt-1 w-full border border-border bg-bg px-2 py-1.5 font-mono text-[12px] text-ink placeholder:text-ink-muted focus:border-ink focus:outline-none"
+                className="mt-1 w-full border border-border bg-bg px-2 py-1.5 font-mono text-[13px] text-ink placeholder:text-ink-muted focus:border-ink focus:outline-none"
               />
             </label>
           </div>
 
-          <label className="flex items-center gap-2 font-mono text-[11px] text-ink-secondary">
+          <label className="flex items-center gap-2 font-mono text-[12px] text-ink-secondary">
             <input
               type="checkbox"
               checked={force}
@@ -153,7 +153,7 @@ export function TriggerRunDialog({ dagId, open, pending, onClose, onSubmit }: Tr
           </label>
 
           <label className="block">
-            <span className="font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-ink-muted">
+            <span className="font-mono text-[11px] font-medium uppercase tracking-[0.1em] text-ink-muted">
               Metadata JSON
             </span>
             <textarea
@@ -161,11 +161,11 @@ export function TriggerRunDialog({ dagId, open, pending, onClose, onSubmit }: Tr
               onChange={(e) => setMetadataText(e.target.value)}
               rows={7}
               spellCheck={false}
-              className="mt-1 w-full resize-y border border-border bg-bg px-3 py-2 font-mono text-[12px] leading-5 text-ink focus:border-ink focus:outline-none"
+              className="mt-1 w-full resize-y border border-border bg-bg px-3 py-2 font-mono text-[13px] leading-5 text-ink focus:border-ink focus:outline-none"
             />
           </label>
 
-          {error && <div className="border-l-2 border-error pl-3 font-mono text-[11px] text-error">{error}</div>}
+          {error && <div className="border-l-2 border-error pl-3 font-mono text-[12px] text-error">{error}</div>}
         </div>
 
         <div className="flex items-center justify-end gap-3 border-t border-border px-5 py-4">
@@ -173,7 +173,7 @@ export function TriggerRunDialog({ dagId, open, pending, onClose, onSubmit }: Tr
             type="button"
             onClick={onClose}
             disabled={pending}
-            className="text-[12px] text-ink-muted transition-colors hover:text-ink disabled:opacity-40"
+            className="text-[13px] text-ink-muted transition-colors hover:text-ink disabled:opacity-40"
           >
             Cancel
           </button>
@@ -181,7 +181,7 @@ export function TriggerRunDialog({ dagId, open, pending, onClose, onSubmit }: Tr
             type="button"
             onClick={submit}
             disabled={pending}
-            className="border border-ink bg-ink px-3 py-1.5 text-[12px] font-medium text-bg transition-colors hover:border-accent hover:bg-accent disabled:opacity-50"
+            className="border border-ink bg-ink px-3 py-1.5 text-[13px] font-medium text-bg transition-colors hover:border-accent hover:bg-accent disabled:opacity-50"
           >
             Trigger
           </button>

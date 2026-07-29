@@ -77,25 +77,25 @@ export function DAGList() {
   useRowNav('tr[data-row="dag"]', [rows.length])
 
   return (
-    <div className="mx-auto max-w-7xl px-4 pt-7 pb-12 sm:px-6 sm:pt-10 sm:pb-14 lg:px-8">
+    <div className="mx-auto max-w-[1440px] px-4 pt-7 pb-12 sm:px-6 sm:pt-10 sm:pb-14 lg:px-8">
       {/* Masthead label */}
       <div className="mb-6 flex items-center justify-between">
-        <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-muted">
+        <span className="font-mono text-[11px] uppercase tracking-[0.1em] text-ink-muted">
           Pipelines
         </span>
-        <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-muted">
+        <span className="font-mono text-[11px] uppercase tracking-[0.1em] text-ink-muted">
           {dagsQ.data ? `${rows.length} / ${dagsQ.data.length}` : ''}
         </span>
       </div>
       <div className="border-t border-ink" />
 
       {/* Headline */}
-      <h1 className="mt-8 font-display text-[32px] font-light leading-[1.1] tracking-[-0.015em] text-ink">
+      <h1 className="mt-8 font-display text-[32px] font-normal leading-[1.1] tracking-[-0.015em] text-ink">
         All DAGs
       </h1>
 
       {/* Inline controls */}
-      <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-border pb-3">
+      <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-border pb-3">
         <input
           ref={filterRef}
           type="text"
@@ -103,9 +103,9 @@ export function DAGList() {
           onChange={(e) => setFilter(e.target.value)}
           placeholder="Filter by name…  press / to focus"
           aria-label="Filter DAGs by name"
-          className="min-w-0 flex-1 border-0 bg-transparent py-1 text-[13px] text-ink placeholder:text-ink-muted focus:outline-none sm:w-72 sm:flex-none"
+          className="min-w-0 flex-1 border-0 bg-transparent py-1 text-[14px] text-ink placeholder:text-ink-muted focus:outline-none sm:w-72 sm:flex-none"
         />
-        <label className="flex cursor-pointer items-center gap-2 text-[12px] text-ink-secondary select-none">
+        <label className="flex cursor-pointer items-center gap-2 text-[13px] text-ink-secondary select-none">
           <input
             type="checkbox"
             checked={onlyRunning}
@@ -136,7 +136,7 @@ export function DAGList() {
             <col className="w-42.5" />
           </colgroup>
           <thead>
-            <tr className="border-b border-border text-left font-mono text-[9px] font-medium uppercase tracking-[0.14em] text-ink-muted">
+            <tr className="border-b border-border text-left font-mono text-[10px] font-medium uppercase tracking-[0.1em] text-ink-muted">
               <SortTh label="Name" k="dag_id" sort={sort} onClick={toggleSort} />
               <th className="py-2.5">Last 20</th>
               <th className="py-2.5">Duration</th>
@@ -185,12 +185,12 @@ function Row({ dag, runs }: { dag: DAGSummary; runs: DAGRun[] }) {
       data-row="dag"
       className="group data-[active=true]:bg-bg-raised/70"
     >
-      <td className="py-3">
+      <td className="py-3.5">
         <Link
           to={`/ui/dags/${dag.dag_id}`}
           onMouseEnter={prefetch}
           onFocus={prefetch}
-          className="flex items-center gap-2 text-[13px] text-ink transition-colors hover:text-accent"
+          className="flex items-center gap-2 text-[14px] text-ink transition-colors hover:text-accent"
         >
           {dag.is_running && (
             <span className="size-1.5 shrink-0 rounded-full bg-accent" title="Running" />
@@ -198,9 +198,9 @@ function Row({ dag, runs }: { dag: DAGSummary; runs: DAGRun[] }) {
           <span className="truncate">{dag.dag_id}</span>
         </Link>
       </td>
-      <td className="py-3"><RunStrip runs={runs} max={20} /></td>
-      <td className="py-3"><Sparkline runs={runs} max={20} /></td>
-      <td className="py-3 text-right font-mono text-[11px] tabular-nums">
+      <td className="py-3.5"><RunStrip runs={runs} max={20} /></td>
+      <td className="py-3.5"><Sparkline runs={runs} max={20} /></td>
+      <td className="py-3.5 text-right font-mono text-[12px] tabular-nums">
         <span className="text-ink">{dag.total_runs}</span>
         {dag.total_runs > 0 && (
           <span className={cn('ml-1.5', successRateClass(dag.success_rate))}>
@@ -208,10 +208,10 @@ function Row({ dag, runs }: { dag: DAGSummary; runs: DAGRun[] }) {
           </span>
         )}
       </td>
-      <td className="py-3 text-right font-mono text-[11px] text-ink-secondary">
+      <td className="py-3.5 text-right font-mono text-[12px] text-ink-secondary">
         {dag.avg_duration_seconds > 0 ? formatDuration(dag.avg_duration_seconds) : '—'}
       </td>
-      <td className="py-3 font-mono text-[11px] text-ink-muted">
+      <td className="py-3.5 font-mono text-[12px] text-ink-muted">
         {dag.schedule_display ? (
           <span>
             {dag.schedule_display}
@@ -235,7 +235,7 @@ function successRateClass(rate: number): string {
 function EmptyDagsEditorial() {
   return (
     <div className="mx-auto max-w-2xl py-20">
-      <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-muted">
+      <p className="font-mono text-[11px] uppercase tracking-[0.1em] text-ink-muted">
         Nothing to show
       </p>
       <h2 className="mt-3 font-display text-[28px] leading-tight text-ink">
@@ -246,7 +246,7 @@ function EmptyDagsEditorial() {
         appear here — scheduled or ready to trigger manually.
       </p>
 
-      <pre className="mt-8 overflow-x-auto border-l-2 border-border bg-bg-raised px-5 py-4 font-mono text-[12px] leading-relaxed text-ink">
+      <pre className="mt-8 overflow-x-auto border-l-2 border-border bg-bg-raised px-5 py-4 font-mono text-[13px] leading-relaxed text-ink">
 {`from riverflow import dag, task
 
 @task
@@ -262,7 +262,7 @@ def hourly_rollup():
     load(extract())`}
       </pre>
 
-      <p className="mt-6 font-mono text-[11px] text-ink-muted">
+      <p className="mt-6 font-mono text-[12px] text-ink-muted">
         See <span className="text-ink-secondary">README.md</span> for the full reference.
       </p>
     </div>

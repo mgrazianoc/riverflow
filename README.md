@@ -64,7 +64,7 @@ assert history.state.value == "success"
 
 **Orchestration.** DAGs with `>>` dependencies. Cron and interval schedules. Retries, timeouts, trigger rules. Async tasks by default.
 
-**UI.** A Broadsheet-flavoured single-page app. Overview, DAG detail (overview / graph / grid / gantt / history / tasks), run detail with live logs, and a built-in **Host** page for on-box CPU, memory, disk, and network — four charts in a 2×2 grid with a synchronised crosshair.
+**UI.** A Broadsheet-flavoured single-page app. Overview, DAG detail (graph / overview / history / grid / gantt / tasks), run detail with live logs, and a built-in **Host** page for on-box CPU, memory, disk, and network — four charts in a 2×2 grid with a synchronised crosshair.
 
 **Live.** WebSocket push — no polling, no full-page refreshes.
 
@@ -89,4 +89,3 @@ Horizontal scale-out. Multi-tenant auth. A plugin marketplace. If you need those
 ## License
 
 Apache 2.0
-

@@ -18,8 +18,8 @@
 
   /* Ink — one strong black + two editorial greys on warm axis */
   --color-ink:           oklch(0.220 0    0);   /* 90/100 — headlines, primary text */
-  --color-ink-secondary: oklch(0.405 0.006 85); /* 60/100 — body copy, active labels */
-  --color-ink-muted:     oklch(0.595 0.008 85); /* 40/100 — supporting, meta */
+  --color-ink-secondary: oklch(0.345 0.006 85); /* body copy, active labels */
+  --color-ink-muted:     oklch(0.505 0.008 85); /* supporting copy, still readable */
 
   /* Rules — hairline browns, not cool grey */
   --color-border:        oklch(0.908 0.010 85);
@@ -63,6 +63,7 @@ html {
 
 body {
   font-family: var(--font-sans);
+  font-weight: 400;
   font-feature-settings: "ss01", "ss02", "cv11";
   background: var(--color-bg);
   color: var(--color-ink);
@@ -74,14 +75,20 @@ body {
 /* Display face used on real headlines and hero numbers. */
 .font-display {
   font-family: var(--font-display);
+  font-weight: 400;
   font-feature-settings: "ss01", "ss02";
-  letter-spacing: -0.01em;
+  letter-spacing: -0.008em;
 }
 
 /* Mono face used on IDs, timestamps, run IDs, durations in dense tables. */
 .font-mono {
   font-family: var(--font-mono);
   font-feature-settings: "zero";
+}
+
+/* Small editorial labels remain compact, but never faint. */
+.font-mono.uppercase {
+  font-weight: 500;
 }
 
 /* Scrollbars — thin, earth-toned, unobtrusive */

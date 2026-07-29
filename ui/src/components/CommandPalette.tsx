@@ -159,17 +159,17 @@ export function CommandPalette() {
                   i === cursor ? 'bg-bg-raised text-ink' : 'text-ink-secondary',
                 )}
               >
-                <span className="w-14 shrink-0 font-mono text-[9px] font-medium uppercase tracking-wider text-ink-muted">
+                <span className="w-14 shrink-0 font-mono text-[10px] font-medium uppercase tracking-wider text-ink-muted">
                   {it.kind === 'action' ? 'Run' : it.kind === 'dag' ? 'DAG' : 'Go to'}
                 </span>
                 <span className="flex-1 truncate">{it.label}</span>
-                <span className="shrink-0 text-[10px] text-ink-muted">{it.hint}</span>
+                <span className="shrink-0 text-[11px] text-ink-muted">{it.hint}</span>
               </button>
             ))
           )}
         </div>
 
-        <div className="flex items-center justify-between gap-4 border-t border-border bg-bg-raised/60 px-4 py-2 text-[10px] text-ink-muted">
+        <div className="flex items-center justify-between gap-4 border-t border-border bg-bg-raised/60 px-4 py-2 text-[11px] text-ink-muted">
           <div className="hidden items-center gap-3 sm:flex">
             <Key>↑↓</Key><span>navigate</span>
             <Key>↵</Key><span>select</span>
@@ -184,7 +184,7 @@ export function CommandPalette() {
 
 function Key({ children }: { children: React.ReactNode }) {
   return (
-    <kbd className="rounded-sm border border-border bg-bg-raised px-1 py-px font-mono text-[9px] text-ink-secondary">
+    <kbd className="rounded-sm border border-border bg-bg-raised px-1 py-px font-mono text-[10px] text-ink-secondary">
       {children}
     </kbd>
   )

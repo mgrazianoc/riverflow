@@ -66,7 +66,7 @@ export function DAGGantt() {
     <div className="px-4 py-6 sm:px-6 lg:px-8">
       {/* Run selector */}
       <div className="mb-5 flex flex-wrap items-center gap-3">
-        <label htmlFor="gantt-run" className="font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-ink-muted">Run</label>
+        <label htmlFor="gantt-run" className="font-mono text-[11px] font-medium uppercase tracking-[0.1em] text-ink-muted">Run</label>
         <select
           id="gantt-run"
           value={activeRunId ?? ''}
@@ -129,7 +129,7 @@ export function DAGGantt() {
                     >
                       {/* Duration label inside bar if wide enough */}
                       {widthPct > 8 && (
-                        <span className="absolute inset-0 flex items-center justify-center font-mono text-[10px] font-medium text-bg">
+                        <span className="absolute inset-0 flex items-center justify-center font-mono text-[11px] font-medium text-bg">
                           {formatDuration(durationSec)}
                         </span>
                       )}
@@ -159,7 +159,7 @@ function TimeAxis({ minTs, maxTs }: { minTs: number; maxTs: number }) {
   return (
     <div className="relative flex h-5 w-full justify-between">
       {labels.map((l, i) => (
-        <span key={i} className="text-[10px] tabular-nums text-ink-muted">
+        <span key={i} className="text-[11px] tabular-nums text-ink-muted">
           {l}
         </span>
       ))}

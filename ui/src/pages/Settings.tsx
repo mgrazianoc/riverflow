@@ -11,28 +11,28 @@ export function Settings() {
 
   if (!status)
     return (
-      <div className="mx-auto max-w-7xl px-4 pt-7 font-mono text-[11px] text-ink-muted sm:px-6 sm:pt-10 lg:px-8">
+      <div className="mx-auto max-w-[1180px] px-4 pt-7 font-mono text-[12px] text-ink-muted sm:px-6 sm:pt-10 lg:px-8">
         Loading…
       </div>
     )
 
   return (
-    <div className="mx-auto max-w-7xl px-4 pt-7 pb-16 sm:px-6 sm:pt-10 sm:pb-20 lg:px-8">
-      <div className="mb-6 flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.14em] text-ink-muted">
+    <div className="mx-auto max-w-[1180px] px-4 pt-7 pb-16 sm:px-6 sm:pt-10 sm:pb-20 lg:px-8">
+      <div className="mb-6 flex items-center justify-between font-mono text-[11px] uppercase tracking-[0.1em] text-ink-muted">
         <span>{new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</span>
         <span>System</span>
       </div>
       <div className="border-t border-ink" />
 
-      <h1 className="mt-6 font-display text-[34px] font-light leading-[1.05] tracking-[-0.015em] text-ink">
+      <h1 className="mt-7 font-display text-[34px] font-normal leading-[1.08] tracking-[-0.015em] text-ink">
         System
       </h1>
-      <p className="mt-2 text-[13px] text-ink-secondary">
+      <p className="mt-2 text-[14px] text-ink-secondary">
         Server configuration and runtime status.
       </p>
 
-      <section className="mt-10">
-        <div className="mb-3 font-mono text-[10px] uppercase tracking-[0.14em] text-ink-muted">
+      <section className="mt-9">
+        <div className="mb-3 font-mono text-[11px] uppercase tracking-[0.1em] text-ink-muted">
           Status
         </div>
         <dl className="divide-y divide-border border-t border-b border-border">
@@ -45,8 +45,8 @@ export function Settings() {
       </section>
 
       {status.registered_dags.length > 0 && (
-        <section className="mt-10">
-          <div className="mb-3 font-mono text-[10px] uppercase tracking-[0.14em] text-ink-muted">
+        <section className="mt-9">
+          <div className="mb-3 font-mono text-[11px] uppercase tracking-[0.1em] text-ink-muted">
             Registered DAGs
           </div>
           <div className="flex flex-wrap gap-1.5">
@@ -54,7 +54,7 @@ export function Settings() {
               <Link
                 key={id}
                 to={`/ui/dags/${id}`}
-                className="rounded-sm border border-border bg-bg-raised px-2 py-1 font-mono text-[11px] text-ink-secondary"
+                className="rounded-sm border border-border bg-bg-raised px-2 py-1 font-mono text-[12px] text-ink-secondary"
               >
                 {id}
               </Link>
@@ -68,9 +68,9 @@ export function Settings() {
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-start justify-between gap-6 px-1 py-3">
-      <dt className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-muted">{label}</dt>
-      <dd className="text-right font-mono text-[13px] tabular-nums text-ink">{value}</dd>
+    <div className="flex items-start justify-between gap-6 px-1 py-3.5">
+      <dt className="font-mono text-[11px] uppercase tracking-[0.1em] text-ink-muted">{label}</dt>
+      <dd className="text-right font-mono text-[14px] tabular-nums text-ink">{value}</dd>
     </div>
   )
 }

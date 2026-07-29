@@ -14,12 +14,12 @@ export function ErrorState({ error, onRetry, className = 'px-8 py-10' }: ErrorSt
   return (
     <div className={className}>
       <div className="border-l-2 border-error/70 pl-4">
-        <div className="text-[11px] font-medium uppercase tracking-wider text-error">Error</div>
+        <div className="text-[12px] font-medium uppercase tracking-wider text-error">Error</div>
         <p className="mt-1 text-sm text-ink-secondary">{errorMessage(error)}</p>
         {onRetry && (
           <button
             onClick={onRetry}
-            className="mt-3 text-[12px] text-accent transition-colors hover:text-accent-hover"
+            className="mt-3 text-[13px] text-accent transition-colors hover:text-accent-hover"
           >
             Try again →
           </button>

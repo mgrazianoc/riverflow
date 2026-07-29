@@ -31,7 +31,7 @@ export function Shell() {
     <div className="flex h-screen flex-col overflow-hidden">
       {/* Masthead */}
       <header className="shrink-0 border-b border-border bg-bg">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center px-4 sm:h-14 sm:flex-nowrap sm:gap-8 sm:px-6 lg:gap-10 lg:px-8">
+        <div className="mx-auto flex max-w-[1440px] flex-wrap items-center px-4 sm:h-14 sm:flex-nowrap sm:gap-8 sm:px-6 lg:gap-10 lg:px-8">
           {/* Brand */}
           <NavLink to="/ui" end className="flex h-12 items-center gap-2.5 text-ink sm:h-auto">
             <Logo size={18} className="shrink-0" />
@@ -52,7 +52,7 @@ export function Shell() {
                 end={end}
                 className={({ isActive }) =>
                   cn(
-                    'flex h-10 shrink-0 items-center border-b text-[13px] transition-colors sm:h-auto sm:border-0',
+                    'flex h-10 shrink-0 items-center border-b text-[14px] transition-colors sm:h-auto sm:border-0',
                     isActive
                       ? 'border-ink text-ink sm:border-transparent'
                       : 'border-transparent text-ink-muted hover:text-ink-secondary',
@@ -65,7 +65,7 @@ export function Shell() {
           </nav>
 
           {/* Right — liveness + Cmd-K hint */}
-          <div className="ml-auto flex items-center gap-4 text-[11px] text-ink-muted sm:gap-5">
+          <div className="ml-auto flex items-center gap-4 text-[12px] text-ink-muted sm:gap-5">
             <span className="flex items-center gap-1.5">
               <span
                 className={cn(
@@ -89,10 +89,10 @@ export function Shell() {
               title="Open command palette"
               aria-label={`Open command palette (${isMac ? 'Command' : 'Control'} K)`}
             >
-              <kbd className="rounded-sm border border-border bg-bg-raised px-1 font-mono text-[9px] leading-4">
+              <kbd className="rounded-sm border border-border bg-bg-raised px-1 font-mono text-[10px] leading-4">
                 {isMac ? '⌘' : 'Ctrl'}
               </kbd>
-              <kbd className="rounded-sm border border-border bg-bg-raised px-1 font-mono text-[9px] leading-4">K</kbd>
+              <kbd className="rounded-sm border border-border bg-bg-raised px-1 font-mono text-[10px] leading-4">K</kbd>
             </button>
           </div>
         </div>

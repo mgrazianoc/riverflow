@@ -76,7 +76,7 @@ export function DAGGrid() {
   return (
     <div className="overflow-auto px-4 py-6 sm:px-6 lg:px-8">
       {/* Legend */}
-      <div className="mb-5 flex flex-wrap items-center gap-x-4 gap-y-2 font-mono text-[10px] text-ink-muted">
+      <div className="mb-5 flex flex-wrap items-center gap-x-4 gap-y-2 font-mono text-[11px] text-ink-muted">
         {['success', 'failed', 'running', 'skipped', 'upstream_failed', 'timeout', 'none'].map((s) => (
           <span key={s} className="flex items-center gap-1.5">
             <span className={cn('inline-block h-3 w-3 rounded-[2px]', stateColor[s])} />
@@ -100,7 +100,7 @@ export function DAGGrid() {
                   <th key={r.run_id} className="pb-1">
                     <Link
                       to={`/ui/runs/${r.run_id}`}
-                      className="block text-center text-[10px] tabular-nums text-ink-muted hover:text-ink-secondary"
+                      className="block text-center text-[11px] tabular-nums text-ink-muted hover:text-ink-secondary"
                       title={r.run_id}
                     >
                       {i + 1}

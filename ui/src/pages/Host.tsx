@@ -27,9 +27,9 @@ export function Host() {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
 
   return (
-    <div className="mx-auto max-w-7xl px-4 pt-7 pb-12 sm:px-6 sm:pt-10 sm:pb-14 lg:px-8">
+    <div className="mx-auto max-w-[1440px] px-4 pt-7 pb-12 sm:px-6 sm:pt-10 sm:pb-14 lg:px-8">
       {/* Masthead */}
-      <div className="mb-6 flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.14em] text-ink-muted">
+      <div className="mb-6 flex items-center justify-between font-mono text-[11px] uppercase tracking-[0.1em] text-ink-muted">
         <span>
           {new Date().toLocaleDateString(undefined, {
             weekday: 'long',
@@ -44,11 +44,11 @@ export function Host() {
       {/* Headline + current-state band */}
       <div className="flex flex-col items-start justify-between gap-6 pt-8 pb-8 sm:flex-row sm:items-end sm:gap-10">
         <div>
-          <h1 className="font-display text-[34px] font-light leading-[1.05] tracking-[-0.015em] text-ink">
+          <h1 className="font-display text-[34px] font-normal leading-[1.05] tracking-[-0.015em] text-ink">
             Host metrics
           </h1>
           {metrics && (
-            <p className="mt-2 font-mono text-[11px] text-ink-muted">
+            <p className="mt-2 font-mono text-[12px] text-ink-muted">
               {metrics.cpu_count} cores · {metrics.disk_path} · every{' '}
               {metrics.interval_seconds}s · {metrics.samples.length} samples
             </p>
@@ -61,7 +61,7 @@ export function Host() {
 
       {/* Stacked diagnostic layout — one shared x-axis mental model */}
       {metricsQ.isLoading ? (
-        <p className="border-t border-border py-20 text-center font-mono text-[11px] text-ink-muted">
+        <p className="border-t border-border py-20 text-center font-mono text-[12px] text-ink-muted">
           Loading…
         </p>
       ) : metricsQ.isError ? (
@@ -69,7 +69,7 @@ export function Host() {
           <ErrorState error={metricsQ.error} onRetry={() => metricsQ.refetch()} />
         </div>
       ) : !metrics || metrics.samples.length === 0 ? (
-        <p className="border-t border-border py-20 text-center font-mono text-[11px] text-ink-muted">
+        <p className="border-t border-border py-20 text-center font-mono text-[12px] text-ink-muted">
           Collecting samples…
         </p>
       ) : (
@@ -115,7 +115,7 @@ function Section({ label, children }: { label: string; children: React.ReactNode
   return (
     <section>
       <div className="mb-3 flex items-baseline gap-3 border-b border-border pb-2">
-        <h2 className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink">
+        <h2 className="font-mono text-[11px] uppercase tracking-[0.1em] text-ink">
           {label}
         </h2>
       </div>
@@ -143,7 +143,7 @@ function CurrentBand({ sample }: { sample: HostSamplePoint }) {
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="font-mono text-[9px] uppercase tracking-[0.14em] text-ink-muted">
+      <dt className="font-mono text-[10px] uppercase tracking-[0.1em] text-ink-muted">
         {label}
       </dt>
       <dd className="mt-1 truncate font-mono text-[15px] tabular-nums text-ink sm:text-[18px]">{value}</dd>
@@ -302,7 +302,7 @@ function NetworkTab({ samples, hoverIndex, onHoverChange }: TabProps) {
 function ChartHead({ subtitle }: { subtitle: string }) {
   return (
     <div className="mb-3">
-      <p className="font-mono text-[11px] text-ink-muted">{subtitle}</p>
+      <p className="font-mono text-[12px] text-ink-muted">{subtitle}</p>
     </div>
   )
 }
@@ -320,7 +320,7 @@ function Legend({
     'ink-muted': 'bg-ink-muted',
   }
   return (
-    <div className="mt-3 flex gap-5 font-mono text-[10px] uppercase tracking-[0.14em] text-ink-muted">
+    <div className="mt-3 flex gap-5 font-mono text-[11px] uppercase tracking-[0.1em] text-ink-muted">
       {items.map((i, k) => (
         <span key={k} className="inline-flex items-center gap-1.5">
           <span

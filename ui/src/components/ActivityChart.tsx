@@ -34,7 +34,7 @@ export function ActivityChart({ runs, days = 14, className }: ActivityChartProps
 
   // Layout — 16:5, generous left margin for y-axis numerals
   const W = 960
-  const H = 300
+  const H = 260
   const padL = 44
   const padR = 52   // room for right-side p95 axis
   const padT = 16
@@ -177,7 +177,7 @@ export function ActivityChart({ runs, days = 14, className }: ActivityChartProps
       </svg>
 
       {/* Legend — minimal, below, editorial rhythm */}
-      <figcaption className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-[11px] text-ink-muted">
+      <figcaption className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-[12px] text-ink-muted sm:gap-x-5">
         <LegendSwatch kind="area" />
         <span>Success rate</span>
         <LegendSwatch kind="dash" />

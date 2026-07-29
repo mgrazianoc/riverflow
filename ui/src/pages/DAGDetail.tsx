@@ -61,88 +61,44 @@ export function DAGDetail() {
 
   return (
     <div className="flex h-full flex-col">
-      <header className="shrink-0 border-b border-border">
-        <div className="mx-auto max-w-[1440px] px-4 pt-4 sm:px-6 sm:pt-5 lg:px-8">
-          {/* Masthead row */}
-          <div className="mb-2 flex items-center justify-between font-mono text-[11px] uppercase tracking-[0.1em] text-ink-muted">
-            <Link to="/ui/dags" className="transition-colors hover:text-ink">
-              ← Pipelines
+      <header className="shrink-0 border-b border-border bg-bg">
+        <div className="mx-auto max-w-[1440px] px-4 sm:px-6 lg:px-8">
+          <div className="flex h-12 min-w-0 items-center gap-3 min-[900px]:h-14 min-[900px]:gap-4">
+            <Link
+              to="/ui/dags"
+              className="shrink-0 font-mono text-[11px] uppercase tracking-[0.08em] text-ink-muted transition-colors hover:text-ink"
+            >
+              ← DAGs
             </Link>
-            <span>DAG</span>
-          </div>
 
-          {/* Title row — editorial */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="min-w-0 flex-1">
-              <h1 className="font-display text-[34px] font-normal leading-[1.05] tracking-[-0.015em] text-ink">
+            <div className="h-5 w-px shrink-0 bg-border" />
+
+            <div className="flex min-w-0 items-center gap-2.5" title={dag.description ?? undefined}>
+              <h1 className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap py-1 font-display text-[20px] font-normal leading-[1.25] tracking-[-0.01em] text-ink">
                 {dag.dag_id}
               </h1>
-              <div className="mt-1.5 flex items-center gap-3">
-                <StateBadge state={dag.is_running ? 'running' : 'idle'} />
-                {dag.description && (
-                  <p className="line-clamp-1 max-w-2xl text-sm text-ink-secondary">{dag.description}</p>
-                )}
-              </div>
+              <StateBadge state={dag.is_running ? 'running' : 'idle'} compact />
             </div>
 
-            <div className="flex shrink-0 items-center justify-between gap-4 sm:justify-start">
-              <button
-                onClick={() => setTriggerOpen(true)}
-                disabled={trigger.isPending}
-                title="Trigger (t)"
-                className="inline-flex items-center gap-1.5 border border-ink bg-ink px-3 py-1.5 text-[13px] font-medium text-bg transition-colors hover:bg-accent hover:border-accent disabled:opacity-50"
-              >
-                <Play size={11} />
-                Trigger
-                <kbd className="ml-1 hidden rounded-sm border border-bg/30 px-1 font-mono text-[10px] sm:inline">t</kbd>
-              </button>
-            </div>
+            <span className="hidden shrink-0 font-mono text-[11px] tabular-nums text-ink-muted xl:inline">
+              {dag.tasks.length} tasks · {dag.total_runs} {dag.total_runs === 1 ? 'run' : 'runs'}
+            </span>
+
+            <DAGTabs className="ml-auto hidden h-full min-[900px]:flex" />
+
+            <button
+              onClick={() => setTriggerOpen(true)}
+              disabled={trigger.isPending}
+              title="Trigger (t)"
+              className="ml-auto inline-flex shrink-0 items-center gap-1.5 border border-ink bg-ink px-3 py-1.5 text-[13px] font-medium text-bg transition-colors hover:border-accent hover:bg-accent disabled:opacity-50 min-[900px]:ml-2"
+            >
+              <Play size={11} />
+              Trigger
+              <kbd className="ml-1 hidden rounded-sm border border-bg/30 px-1 font-mono text-[10px] sm:inline">t</kbd>
+            </button>
           </div>
 
-          {/* Stats row — editorial rhythm, mono numerals */}
-          <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-1 font-mono text-[12px] text-ink-muted">
-            <Stat label="tasks" value={String(dag.tasks.length)} />
-            <Stat label="runs" value={String(dag.total_runs)} />
-            {dag.total_runs > 0 && (
-              <Stat label="success" value={formatRate(dag.success_rate)} />
-            )}
-            {dag.avg_duration_seconds > 0 && (
-              <Stat label="avg" value={formatDuration(dag.avg_duration_seconds)} />
-            )}
-            {dag.schedule_display && (
-              <Stat label="schedule" value={dag.schedule_display} />
-            )}
-            {dag.next_run && (
-              <span>
-                <span className="text-ink-muted">next </span>
-                <RelativeTime iso={dag.next_run} className="text-ink-secondary" />
-              </span>
-            )}
-          </div>
-
-          {/* Tabs */}
-          <nav
-            aria-label="DAG views"
-            className="-mx-4 mt-4 flex gap-6 overflow-x-auto px-4 sm:mx-0 sm:px-0"
-          >
-            {tabs.map(({ to, label, end }) => (
-              <NavLink
-                key={label}
-                to={to}
-                end={end}
-                className={({ isActive }) =>
-                  cn(
-                    '-mb-px shrink-0 border-b px-0 pb-2 text-[14px] transition-colors',
-                    isActive
-                      ? 'border-ink text-ink'
-                      : 'border-transparent text-ink-muted hover:text-ink-secondary',
-                  )
-                }
-              >
-                {label}
-              </NavLink>
-            ))}
-          </nav>
+          <DAGTabs className="flex h-10 min-[900px]:hidden" />
         </div>
       </header>
 
@@ -161,12 +117,33 @@ export function DAGDetail() {
   )
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function DAGTabs({ className }: { className?: string }) {
   return (
-    <span>
-      <span className="text-ink-secondary tabular-nums">{value}</span>{' '}
-      <span className="uppercase tracking-widest">{label}</span>
-    </span>
+    <nav
+      aria-label="DAG views"
+      className={cn(
+        'min-w-0 items-stretch gap-5 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+        className,
+      )}
+    >
+      {tabs.map(({ to, label, end }) => (
+        <NavLink
+          key={label}
+          to={to}
+          end={end}
+          className={({ isActive }) =>
+            cn(
+              'flex h-full shrink-0 items-center border-b-2 text-[13px] transition-colors',
+              isActive
+                ? 'border-ink text-ink'
+                : 'border-transparent text-ink-muted hover:text-ink-secondary',
+            )
+          }
+        >
+          {label}
+        </NavLink>
+      ))}
+    </nav>
   )
 }
 
@@ -194,6 +171,11 @@ export function DAGOverview() {
     <div className="mx-auto grid max-w-[1440px] grid-cols-1 gap-10 px-4 py-8 sm:px-6 sm:py-10 lg:grid-cols-3 lg:px-8">
       {/* Recent runs */}
       <section className="lg:col-span-2">
+        {dag.description && (
+          <p className="mb-7 max-w-3xl border-l-2 border-border pl-4 text-[15px] leading-6 text-ink-secondary">
+            {dag.description}
+          </p>
+        )}
         <h3 className="mb-4 font-mono text-[11px] font-medium uppercase tracking-[0.1em] text-ink-muted">Recent runs</h3>
         {runsQ.isLoading ? (
           <SkeletonRows rows={4} columns={3} />

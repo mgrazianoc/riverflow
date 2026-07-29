@@ -61,7 +61,7 @@ function TaskNode({ data }: NodeProps<Node<TaskNodeData>>) {
       <Handle type="target" position={Position.Left} className="w-1.5! h-1.5! bg-border-bright! border-0!" />
       <div
         className={cn(
-          'w-full cursor-pointer rounded-md border px-4 py-3 transition-all',
+          'h-full w-full cursor-pointer rounded-md border px-4 py-3 transition-all',
           'hover:border-ink-muted hover:shadow-sm hover:shadow-ink/10',
           data.selected && 'ring-1 ring-accent ring-offset-1 ring-offset-bg',
           style.border, style.bg,
@@ -358,7 +358,7 @@ function useMediaQuery(query: string) {
 
 function toReactFlow(graph: DAGGraph, dagId: string, selectedTask: string | null) {
   const nodeWidth = 220
-  const nodeHeight = 76
+  const nodeHeight = 88
   const columnGap = 160
   const rowGap = 36
   const columns = new Map<number, typeof graph.nodes>()
@@ -394,7 +394,7 @@ function toReactFlow(graph: DAGGraph, dagId: string, selectedTask: string | null
       id: n.id,
       type: 'task',
       position,
-      style: { width: nodeWidth },
+      style: { width: nodeWidth, height: nodeHeight },
       data: {
         label: n.label,
         state: n.state,

@@ -70,6 +70,16 @@ Every top-level page follows the same broadsheet rhythm:
 </div>
 ```
 
+Nested operational views are the exception. A DAG or run detail page already
+sits below the global masthead; do not add another editorial hero above its
+working surface. Use a compact context bar (56px desktop, at most 96px when
+tabs wrap onto a mobile row) containing the back link, identifier, state,
+local navigation, and primary action.
+
+Horizontal tab strips must set `overflow-y-hidden` and hide scrollbar chrome.
+Their active border is enough orientation; an overlay scrollbar must never
+float over the header.
+
 **Numbers tell the story.** When a number is the point of a headline,
 enlarge it and give it a single color:
 
@@ -129,8 +139,8 @@ These three SVG components are the visual signature of the UI. If you
 need a new chart, start from one of them; do not reach for Recharts,
 Chart.js, Nivo, or D3.
 
-- **`ActivityChart`** (`components/ActivityChart.tsx`) — the Dashboard
-  hero. Layered SVG: success-rate area + p95 duration dashed line +
+- **`ActivityChart`** (`components/ActivityChart.tsx`) — the Dashboard's
+  compact secondary trend. Layered SVG: success-rate area + p95 duration dashed line +
   failure bars. 14-day daily buckets with gap handling. Uses only
   `--color-accent`, `--color-error`, `--color-border`.
 - **`Sparkline`** (`components/Sparkline.tsx`) — per-row duration bars.
@@ -227,7 +237,7 @@ Rule of thumb: *"Would I paste this URL to a teammate?"* → URL state.
 ui/src/
   index.css                    # Palette + type + radii (authoritative)
   components/
-    ActivityChart.tsx          # Dashboard hero chart (identity)
+    ActivityChart.tsx          # Dashboard compact trend (identity)
     Sparkline.tsx              # Per-row duration micro-chart (identity)
     RunStrip.tsx               # 20-cell run-state strip (identity)
     StatusBadge.tsx            # State dot + label

@@ -21,7 +21,7 @@ interface Bucket {
 }
 
 /**
- * The Dashboard hero — a single layered chart that replaces every KPI card.
+ * The Dashboard trend — a compact layered chart that replaces KPI cards.
  *
  *   success-rate area (accent, 0–100%)       ← primary, carries the eye
  *   p95 duration line (ink-secondary)        ← secondary narrative
@@ -68,7 +68,7 @@ export function ActivityChart({ runs, days = 14, className }: ActivityChartProps
       <svg
         viewBox={`0 0 ${W} ${H}`}
         width="100%"
-        className="block h-55 w-full sm:h-auto"
+        className="block h-48 w-full sm:h-52"
         role="img"
         aria-label="Run activity over time"
         preserveAspectRatio="none"

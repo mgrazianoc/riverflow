@@ -15,7 +15,7 @@ import type { DAGRun, DAGSummary } from '../types'
 
 /**
  * Broadsheet Dashboard.
- * Editorial headline → data-inked chart hero → dense DAG table → activity log.
+ * Editorial headline → operational pipeline/run index → compact activity trend.
  */
 export function Dashboard() {
   const dagsQ = useQuery({ queryKey: ['dags'], queryFn: api.getDags, refetchInterval: 5000 })
@@ -51,7 +51,7 @@ export function Dashboard() {
   return (
     <div className="mx-auto max-w-[1440px] px-4 pt-7 pb-12 sm:px-6 sm:pt-10 sm:pb-14 lg:px-8">
       {/* Masthead date — editorial cue */}
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-4 flex items-center justify-between">
         <span className="font-mono text-[11px] uppercase tracking-[0.1em] text-ink-muted">
           {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
         </span>
@@ -64,7 +64,7 @@ export function Dashboard() {
       <div className="border-t border-ink" />
 
       {/* Headline — editorial, data-first, display serif */}
-      <div className="pt-7 pb-8 sm:pt-8 sm:pb-9">
+      <div className="pt-5 pb-6 sm:pt-6 sm:pb-7">
         <Headline
           loading={loading}
           dagCount={dags.length}
@@ -75,107 +75,108 @@ export function Dashboard() {
         />
       </div>
 
-      {/* Chart hero — the identity piece */}
-      <section className="border-t border-border pt-7">
-        <div className="mb-4 flex items-baseline justify-between">
-          <h2 className="font-mono text-[11px] font-medium uppercase tracking-[0.1em] text-ink-muted">
-            Activity · 14 days
-          </h2>
-          <Link to="/ui/dags" className="text-xs text-ink-muted transition-colors hover:text-ink">
-            All DAGs →
-          </Link>
-        </div>
-        {loading ? (
-          <div className="h-75 animate-pulse rounded-sm bg-bg-raised/60" />
-        ) : runsQ.isError ? (
-          <ErrorState error={runsQ.error} onRetry={() => runsQ.refetch()} className="py-10" />
-        ) : (
-          <ActivityChart runs={runs} days={14} />
-        )}
-      </section>
+      <div className="grid items-start gap-9 xl:grid-cols-[minmax(0,2fr)_minmax(340px,0.9fr)] xl:gap-x-10">
+        {/* Pipelines — primary navigation and current health */}
+        <section className="min-w-0 border-t border-border pt-5">
+          <div className="mb-4 flex items-baseline justify-between">
+            <h2 className="font-mono text-[11px] font-medium uppercase tracking-[0.1em] text-ink-muted">
+              Pipelines
+            </h2>
+            <Link to="/ui/dags" className="text-xs text-ink-muted transition-colors hover:text-ink">
+              {dags.length > 0 ? `${dags.length} registered · view all →` : ''}
+            </Link>
+          </div>
+          {dagsQ.isLoading ? (
+            <SkeletonRows rows={4} columns={5} />
+          ) : dagsQ.isError ? (
+            <ErrorState error={dagsQ.error} onRetry={() => dagsQ.refetch()} className="py-10" />
+          ) : dags.length === 0 ? (
+            <EmptyDags />
+          ) : (
+            <div>
+              <table className="w-full table-fixed">
+                <thead>
+                  <tr className="border-b border-border text-left font-mono text-[10px] font-medium uppercase tracking-[0.1em] text-ink-muted">
+                    <th className="py-2.5">Name</th>
+                    <th className="w-30 py-2.5">Last 20</th>
+                    <th className="hidden w-32 py-2.5 lg:table-cell">Duration</th>
+                    <th className="hidden w-25 py-2.5 text-right sm:table-cell">Runs</th>
+                    <th className="hidden w-22 py-2.5 text-right md:table-cell">Avg</th>
+                    <th className="hidden w-34 py-2.5 pl-4 lg:table-cell">Next</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/60">
+                  {dags.slice(0, 8).map((d) => (
+                    <DAGRow key={d.dag_id} dag={d} runs={runsByDag.get(d.dag_id) ?? []} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
 
-      {/* DAGs — dense table */}
-      <section className="mt-12 border-t border-border pt-5">
-        <div className="mb-4 flex items-baseline justify-between">
-          <h2 className="font-mono text-[11px] font-medium uppercase tracking-[0.1em] text-ink-muted">
-            DAGs
-          </h2>
-          <span className="text-xs text-ink-muted">
-            {dags.length > 0 ? `${dags.length} registered` : ''}
-          </span>
-        </div>
-        {dagsQ.isLoading ? (
-          <SkeletonRows rows={4} columns={5} />
-        ) : dagsQ.isError ? (
-          <ErrorState error={dagsQ.error} onRetry={() => dagsQ.refetch()} className="py-10" />
-        ) : dags.length === 0 ? (
-          <EmptyDags />
-        ) : (
-          <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-          <table className="min-w-215 w-full">
-            <colgroup>
-              <col />
-              <col className="w-30" />
-              <col className="w-35" />
-              <col className="w-30" />
-              <col className="w-27.5" />
-              <col className="w-42.5" />
-            </colgroup>
-            <thead>
-              <tr className="border-b border-border text-left font-mono text-[10px] font-medium uppercase tracking-[0.1em] text-ink-muted">
-                <th className="py-2.5">Name</th>
-                <th className="py-2.5">Last 20</th>
-                <th className="py-2.5">Duration</th>
-                <th className="py-2.5 text-right">Runs</th>
-                <th className="py-2.5 text-right">Avg</th>
-                <th className="py-2.5">Next</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/60">
-              {dags.map((d) => (
-                <DAGRow key={d.dag_id} dag={d} runs={runsByDag.get(d.dag_id) ?? []} />
+        {/* Recent runs — glanceable, not a second full-width log */}
+        <section className="min-w-0 border-t border-border pt-5 xl:col-start-2 xl:row-span-2 xl:row-start-1">
+          <div className="mb-4 flex items-baseline justify-between">
+            <h2 className="font-mono text-[11px] font-medium uppercase tracking-[0.1em] text-ink-muted">
+              Recent runs
+            </h2>
+            <span className="text-xs text-ink-muted">latest 8</span>
+          </div>
+          {runsQ.isLoading ? (
+            <SkeletonRows rows={6} columns={3} />
+          ) : runsQ.isError ? (
+            <ErrorState error={runsQ.error} onRetry={() => runsQ.refetch()} className="py-8" />
+          ) : runs.length === 0 ? (
+            <p className="py-6 text-sm text-ink-muted">No runs yet.</p>
+          ) : (
+            <div className="divide-y divide-border/60">
+              {runs.slice(0, 8).map((r) => (
+                <Link
+                  key={r.run_id}
+                  to={`/ui/runs/${r.run_id}`}
+                  className="group grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 py-2.5 transition-colors hover:bg-bg-raised/60"
+                >
+                  <StateBadge state={r.state} compact />
+                  <span className="min-w-0">
+                    <span className="block truncate text-[14px] text-ink group-hover:text-accent">
+                      {r.dag_id}
+                    </span>
+                    <span className="block truncate font-mono text-[11px] text-ink-muted">
+                      {r.run_id}
+                    </span>
+                  </span>
+                  <span className="text-right">
+                    <RelativeTime iso={r.start_time} className="block font-mono text-[11px] text-ink-muted" />
+                    <span className="block font-mono text-[11px] text-ink-secondary">
+                      {r.duration_seconds != null ? formatDuration(r.duration_seconds) : '—'}
+                    </span>
+                  </span>
+                </Link>
               ))}
-            </tbody>
-          </table>
-          </div>
-        )}
-      </section>
+            </div>
+          )}
+        </section>
 
-      {/* Recent activity — compact log */}
-      <section className="mt-12 border-t border-border pt-5">
-        <h2 className="mb-4 font-mono text-[11px] font-medium uppercase tracking-[0.1em] text-ink-muted">
-          Recent activity
-        </h2>
-        {runsQ.isLoading ? (
-          <SkeletonRows rows={6} columns={3} />
-        ) : runsQ.isError ? (
-          <ErrorState error={runsQ.error} onRetry={() => runsQ.refetch()} className="py-8" />
-        ) : runs.length === 0 ? (
-          <p className="py-6 text-sm text-ink-muted">No runs yet.</p>
-        ) : (
-          <div className="divide-y divide-border/60">
-            {runs.slice(0, 16).map((r) => (
-              <Link
-                key={r.run_id}
-                to={`/ui/runs/${r.run_id}`}
-                className="group flex items-center gap-3 py-3 transition-colors hover:bg-bg-raised/60 sm:gap-4"
-              >
-                <StateBadge state={r.state} compact />
-                <span className="min-w-0 flex-1 truncate text-[14px] text-ink group-hover:text-accent">
-                  {r.dag_id}
-                </span>
-                <span className="hidden w-32 truncate font-mono text-[12px] text-ink-muted sm:inline">
-                  {r.run_id}
-                </span>
-                <span className="hidden w-20 text-right font-mono text-[12px] text-ink-secondary min-[430px]:inline">
-                  {r.duration_seconds != null ? formatDuration(r.duration_seconds) : '—'}
-                </span>
-                <RelativeTime iso={r.start_time} className="w-20 shrink-0 text-right font-mono text-[12px] text-ink-muted" />
-              </Link>
-            ))}
+        {/* Trend is useful context, but secondary to live operational state. */}
+        <section className="min-w-0 border-t border-border pt-5 xl:col-start-1">
+          <div className="mb-3 flex items-baseline justify-between">
+            <h2 className="font-mono text-[11px] font-medium uppercase tracking-[0.1em] text-ink-muted">
+              Activity · 14 days
+            </h2>
+            <span className="text-xs text-ink-muted">
+              success · duration · failures
+            </span>
           </div>
-        )}
-      </section>
+          {loading ? (
+            <div className="h-52 animate-pulse rounded-sm bg-bg-raised/60" />
+          ) : runsQ.isError ? (
+            <ErrorState error={runsQ.error} onRetry={() => runsQ.refetch()} className="py-10" />
+          ) : (
+            <ActivityChart runs={runs} days={14} />
+          )}
+        </section>
+      </div>
     </div>
   )
 }
@@ -293,10 +294,10 @@ function DAGRow({ dag, runs }: { dag: DAGSummary; runs: DAGRun[] }) {
       <td className="py-3.5">
         <RunStrip runs={runs} max={20} />
       </td>
-      <td className="py-3.5">
+      <td className="hidden py-3.5 lg:table-cell">
         <Sparkline runs={runs} max={20} />
       </td>
-      <td className="py-3.5 text-right font-mono text-[12px] tabular-nums">
+      <td className="hidden py-3.5 text-right font-mono text-[12px] tabular-nums sm:table-cell">
         <span className="text-ink">{dag.total_runs}</span>
         {dag.total_runs > 0 && (
           <span className={cn('ml-1.5', successRateClass(dag.success_rate))}>
@@ -304,10 +305,10 @@ function DAGRow({ dag, runs }: { dag: DAGSummary; runs: DAGRun[] }) {
           </span>
         )}
       </td>
-      <td className="py-3.5 text-right font-mono text-[12px] text-ink-secondary">
+      <td className="hidden py-3.5 text-right font-mono text-[12px] text-ink-secondary md:table-cell">
         {dag.avg_duration_seconds > 0 ? formatDuration(dag.avg_duration_seconds) : '—'}
       </td>
-      <td className="py-3.5 font-mono text-[12px] text-ink-muted">
+      <td className="hidden py-3.5 pl-4 font-mono text-[12px] text-ink-muted lg:table-cell">
         {dag.next_run ? (
           <RelativeTime iso={dag.next_run} />
         ) : dag.schedule_display ? (

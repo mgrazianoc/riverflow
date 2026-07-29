@@ -67,18 +67,11 @@ export function CommandPalette() {
       to: `/ui/flows/${flow.flow_id}`,
     }))
     const triggerFlowItems: Item[] = flows.map((flow) => ({
-      kind: 'action',
-      id: `trigger-flow:${flow.flow_id}`,
-      label: `Trigger flow ${flow.flow_id}`,
-      hint: 'run orchestration',
-      run: async () => {
-        try {
-          const run = await api.triggerFlow(flow.flow_id)
-          toast.push(`Triggered flow ${run.flow_id}`, 'success')
-        } catch (err) {
-          toast.push(errorMessage(err), 'error')
-        }
-      },
+      kind: 'flow',
+      id: `configure-flow:${flow.flow_id}`,
+      label: `Run ${flow.flow_id}`,
+      hint: 'configure parameters',
+      to: `/ui/flows/${flow.flow_id}/graph?trigger=1`,
     }))
     const dagItems: Item[] = dags.map((d) => ({
       kind: 'dag',

@@ -265,6 +265,7 @@ ui/src/
     RelativeTime.tsx           # "3m ago" live updating
     LogViewer.tsx              # Ink-on-paper log panel
     CommandPalette.tsx         # ⌘K search
+    TriggerFlowDialog.tsx      # Flow mode, backfill window, and parameters
   hooks/
     useLocalStorage.ts         # Persistent prefs
     useUrlState.ts             # Shareable filter/view state

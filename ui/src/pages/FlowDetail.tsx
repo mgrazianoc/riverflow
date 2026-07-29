@@ -1,6 +1,6 @@
-import { useMemo } from 'react'
+import { lazy, Suspense, useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, NavLink, Outlet, useParams } from 'react-router'
+import { Link, NavLink, Outlet, useParams, useSearchParams } from 'react-router'
 import { api } from '../api'
 import { Play } from '../components/icons'
 import { EmptyState, ErrorState } from '../components/QueryState'
@@ -11,7 +11,7 @@ import { useShortcut } from '../hooks/useShortcut'
 import { useToast } from '../hooks/useToast'
 import { useUrlState } from '../hooks/useUrlState'
 import { cn, errorMessage, formatDuration } from '../lib/utils'
-import type { FlowRunState } from '../types'
+import type { FlowRunState, TriggerFlowRequest } from '../types'
 
 const tabs = [
   { to: 'graph', label: 'Graph' },
@@ -19,10 +19,16 @@ const tabs = [
   { to: 'runs', label: 'Runs' },
 ]
 
+const TriggerFlowDialog = lazy(() =>
+  import('../components/TriggerFlowDialog').then((module) => ({ default: module.TriggerFlowDialog })),
+)
+
 export function FlowDetail() {
   const { flowId } = useParams<{ flowId: string }>()
   const queryClient = useQueryClient()
   const toast = useToast()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const triggerOpen = searchParams.get('trigger') === '1'
   const flowQ = useQuery({
     queryKey: ['flow', flowId],
     queryFn: () => api.getFlow(flowId!),
@@ -31,17 +37,38 @@ export function FlowDetail() {
   })
   const flow = flowQ.data
   const trigger = useMutation({
-    mutationFn: () => api.triggerFlow(flowId!),
+    mutationFn: (payload: TriggerFlowRequest) => api.triggerFlow(flowId!, payload),
     onSuccess: (run) => {
       toast.push(`Triggered flow ${run.flow_id}`, 'success')
+      setSearchParams((current) => {
+        const next = new URLSearchParams(current)
+        next.delete('trigger')
+        return next
+      }, { replace: true })
       queryClient.invalidateQueries({ queryKey: ['flow', flowId] })
       queryClient.invalidateQueries({ queryKey: ['flow-history'] })
     },
     onError: (error) => toast.push(errorMessage(error), 'error'),
   })
 
+  const openTrigger = () => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current)
+      next.set('trigger', '1')
+      return next
+    }, { replace: true })
+  }
+  const closeTrigger = () => {
+    if (trigger.isPending) return
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current)
+      next.delete('trigger')
+      return next
+    }, { replace: true })
+  }
+
   useShortcut('t', () => {
-    if (flow && !trigger.isPending && !flow.is_running) trigger.mutate()
+    if (flow && !trigger.isPending) openTrigger()
   }, { enabled: !!flow })
 
   if (flowQ.isLoading) {
@@ -77,13 +104,13 @@ export function FlowDetail() {
             <FlowTabs className="ml-auto hidden h-full min-[760px]:flex" />
             <button
               type="button"
-              onClick={() => trigger.mutate()}
-              disabled={trigger.isPending || flow.is_running}
-              title={flow.is_running ? 'Flow is already running' : 'Trigger Flow (t)'}
+              onClick={openTrigger}
+              disabled={trigger.isPending}
+              title={flow.is_running ? 'Configure another Flow run' : 'Trigger Flow (t)'}
               className="ml-auto inline-flex shrink-0 items-center gap-1.5 border border-ink bg-ink px-3 py-1.5 text-[13px] font-medium text-bg transition-colors hover:border-accent hover:bg-accent disabled:cursor-not-allowed disabled:opacity-45 min-[760px]:ml-2"
             >
               <Play size={11} />
-              {flow.is_running ? 'Running' : 'Trigger'}
+              {flow.is_running ? 'Run again' : 'Trigger'}
               <kbd className="ml-1 hidden rounded-sm border border-bg/30 px-1 font-mono text-[10px] sm:inline">t</kbd>
             </button>
           </div>
@@ -93,6 +120,17 @@ export function FlowDetail() {
       <div className="min-h-0 flex-1 overflow-y-auto">
         <Outlet />
       </div>
+      {triggerOpen && (
+        <Suspense fallback={null}>
+          <TriggerFlowDialog
+            flow={flow}
+            open
+            pending={trigger.isPending}
+            onClose={closeTrigger}
+            onSubmit={(payload) => trigger.mutate(payload)}
+          />
+        </Suspense>
+      )}
     </div>
   )
 }

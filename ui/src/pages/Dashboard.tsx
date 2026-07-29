@@ -1,177 +1,199 @@
+import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router'
-import { useMemo } from 'react'
 import { api } from '../api'
-import { StateBadge } from '../components/StatusBadge'
+import { ActivityChart } from '../components/ActivityChart'
+import { ErrorState } from '../components/QueryState'
 import { RelativeTime } from '../components/RelativeTime'
 import { RunStrip } from '../components/RunStrip'
-import { Sparkline } from '../components/Sparkline'
-import { ActivityChart } from '../components/ActivityChart'
 import { SkeletonRows } from '../components/Skeleton'
-import { ErrorState } from '../components/QueryState'
-import { usePrefetchDag } from '../hooks/usePrefetchDag'
-import { formatDuration, formatRate, cn } from '../lib/utils'
-import type { DAGRun, DAGSummary } from '../types'
+import { Sparkline } from '../components/Sparkline'
+import { StateBadge } from '../components/StatusBadge'
+import { cn, formatDuration, formatRate } from '../lib/utils'
+import type { DAGRun, FlowRun } from '../types'
 
-/**
- * Broadsheet Dashboard.
- * Editorial headline → operational pipeline/run index → compact activity trend.
- */
 export function Dashboard() {
+  const flowsQ = useQuery({ queryKey: ['flows'], queryFn: api.getFlows, refetchInterval: 5000 })
+  const flowRunsQ = useQuery({
+    queryKey: ['flow-history'],
+    queryFn: () => api.getFlowHistory(100),
+    refetchInterval: 5000,
+  })
   const dagsQ = useQuery({ queryKey: ['dags'], queryFn: api.getDags, refetchInterval: 5000 })
-  const runsQ = useQuery({ queryKey: ['history'], queryFn: () => api.getHistory(500), refetchInterval: 5000 })
+  const runsQ = useQuery({
+    queryKey: ['history'],
+    queryFn: () => api.getHistory(500),
+    refetchInterval: 5000,
+  })
 
-  const dags = useMemo<DAGSummary[]>(() => dagsQ.data ?? [], [dagsQ.data])
-  const runs = useMemo<DAGRun[]>(() => runsQ.data ?? [], [runsQ.data])
-
+  const flows = useMemo(() => flowsQ.data ?? [], [flowsQ.data])
+  const flowRuns = useMemo(() => flowRunsQ.data ?? [], [flowRunsQ.data])
+  const dags = useMemo(() => dagsQ.data ?? [], [dagsQ.data])
+  const runs = useMemo(() => runsQ.data ?? [], [runsQ.data])
+  const loading = flowsQ.isLoading || flowRunsQ.isLoading || dagsQ.isLoading || runsQ.isLoading
+  const registeredFlowIds = useMemo(() => new Set(flows.map((flow) => flow.flow_id)), [flows])
+  const currentFlowRuns = useMemo(
+    () => flowRuns.filter((run) => registeredFlowIds.has(run.flow_id)),
+    [flowRuns, registeredFlowIds],
+  )
+  const latestFlowRuns = useMemo(() => {
+    const result = new Map<string, FlowRun>()
+    for (const run of currentFlowRuns) if (!result.has(run.flow_id)) result.set(run.flow_id, run)
+    return result
+  }, [currentFlowRuns])
   const runsByDag = useMemo(() => {
-    const m = new Map<string, DAGRun[]>()
-    for (const r of runs) {
-      const arr = m.get(r.dag_id) ?? []
-      arr.push(r)
-      m.set(r.dag_id, arr)
-    }
-    return m
+    const result = new Map<string, DAGRun[]>()
+    for (const run of runs) result.set(run.dag_id, [...(result.get(run.dag_id) ?? []), run])
+    return result
   }, [runs])
-
-  const runningDags = useMemo(() => dags.filter((d) => d.is_running), [dags])
-  const last24h = useMemo(() => {
-    const anchor = runsQ.dataUpdatedAt || 0
-    if (!anchor) return []
-    const cutoff = anchor - 24 * 3600 * 1000
-    return runs.filter((r) => {
-      if (!r.start_time) return false
-      return new Date(r.start_time).getTime() >= cutoff
-    })
-  }, [runs, runsQ.dataUpdatedAt])
-  const recentFailures = last24h.filter((r) => r.state === 'failed').length
-  const latestRun = runs[0]
-  const loading = dagsQ.isLoading || runsQ.isLoading
+  const flowDagIds = useMemo(
+    () => new Set(flows.flatMap((flow) => flow.nodes.map((node) => node.dag_id))),
+    [flows],
+  )
 
   return (
     <div className="mx-auto max-w-[1440px] px-4 pt-7 pb-12 sm:px-6 sm:pt-10 sm:pb-14 lg:px-8">
-      {/* Masthead date — editorial cue */}
       <div className="mb-4 flex items-center justify-between">
         <span className="font-mono text-[11px] uppercase tracking-[0.1em] text-ink-muted">
           {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
         </span>
-        <span className="font-mono text-[11px] uppercase tracking-[0.1em] text-ink-muted">
-          Overview
-        </span>
+        <span className="font-mono text-[11px] uppercase tracking-[0.1em] text-ink-muted">Overview</span>
       </div>
-
-      {/* Hairline rule */}
       <div className="border-t border-ink" />
 
-      {/* Headline — editorial, data-first, display serif */}
-      <div className="pt-5 pb-6 sm:pt-6 sm:pb-7">
+      <div className="pt-5 pb-7 sm:pt-6">
         <Headline
           loading={loading}
+          flowCount={flows.length}
           dagCount={dags.length}
-          runningCount={runningDags.length}
-          recentFailures={recentFailures}
-          totalLast24h={last24h.length}
-          latestRun={latestRun}
+          runningFlows={flows.filter((flow) => flow.is_running).length}
+          failedFlows={currentFlowRuns.filter((run) => run.state === 'failed').slice(0, 10).length}
         />
       </div>
 
-      <div className="grid items-start gap-9 xl:grid-cols-[minmax(0,2fr)_minmax(340px,0.9fr)] xl:gap-x-10">
-        {/* Pipelines — primary navigation and current health */}
-        <section className="min-w-0 border-t border-border pt-5">
-          <div className="mb-4 flex items-baseline justify-between">
-            <h2 className="font-mono text-[11px] font-medium uppercase tracking-[0.1em] text-ink-muted">
-              Pipelines
-            </h2>
-            <Link to="/ui/dags" className="text-xs text-ink-muted transition-colors hover:text-ink">
-              {dags.length > 0 ? `${dags.length} registered · view all →` : ''}
-            </Link>
-          </div>
+      <div className="grid items-start gap-9 xl:grid-cols-[minmax(0,1.75fr)_minmax(330px,0.75fr)] xl:gap-x-10">
+        <section className="min-w-0 border-t border-ink pt-4">
+          <SectionHeading label="Flows" count={flows.length} to="/ui/flows" />
+          {flowsQ.isLoading ? (
+            <SkeletonRows rows={4} columns={4} />
+          ) : flowsQ.isError ? (
+            <ErrorState error={flowsQ.error} onRetry={() => flowsQ.refetch()} className="py-10" />
+          ) : flows.length === 0 ? (
+            <FlowEmpty hasDags={dags.length > 0} />
+          ) : (
+            <div className="divide-y divide-border/60">
+              {flows.slice(0, 7).map((flow) => {
+                const latest = latestFlowRuns.get(flow.flow_id)
+                const complete = latest
+                  ? Object.values(latest.node_states).filter((state) => state === 'success').length
+                  : 0
+                return (
+                  <Link
+                    key={flow.flow_id}
+                    to={`/ui/flows/${flow.flow_id}`}
+                    className="group grid grid-cols-[minmax(0,1fr)_auto] gap-x-5 gap-y-2 py-3.5 transition-colors hover:bg-bg-raised/50 sm:grid-cols-[minmax(180px,0.8fr)_minmax(260px,1.2fr)_auto]"
+                  >
+                    <div className="min-w-0">
+                      <span className="flex items-center gap-2">
+                        <StateBadge state={flow.is_running ? 'running' : latest?.state ?? 'idle'} compact />
+                        <span className="truncate text-[15px] font-medium text-ink group-hover:text-accent">{flow.flow_id}</span>
+                      </span>
+                      {flow.description && (
+                        <span className="mt-0.5 block truncate pl-3.5 text-[12px] text-ink-muted">{flow.description}</span>
+                      )}
+                    </div>
+                    <div className="col-span-2 flex min-w-0 items-center gap-2 overflow-hidden pl-3.5 sm:col-span-1 sm:pl-0">
+                      {flow.nodes.slice(0, 4).map((node, index) => (
+                        <span key={node.node_id} className="contents">
+                          {index > 0 && <span className="shrink-0 text-border-bright">→</span>}
+                          <span className="truncate font-mono text-[10px] text-ink-secondary" title={node.dag_id}>
+                            {node.dag_id}
+                          </span>
+                        </span>
+                      ))}
+                      {flow.nodes.length > 4 && <span className="shrink-0 font-mono text-[10px] text-ink-muted">+{flow.nodes.length - 4}</span>}
+                    </div>
+                    <div className="row-start-1 text-right sm:col-start-3">
+                      <span className="block font-mono text-[11px] text-ink-secondary">
+                        {latest ? `${complete}/${flow.nodes.length} DAGs` : `${flow.nodes.length} DAGs`}
+                      </span>
+                      <span className="block font-mono text-[10px] text-ink-muted">
+                        {latest ? <RelativeTime iso={latest.start_time} /> : flow.schedule_display ?? 'manual'}
+                      </span>
+                    </div>
+                  </Link>
+                )
+              })}
+            </div>
+          )}
+        </section>
+
+        <section className="min-w-0 border-t border-border pt-4 xl:col-start-2 xl:row-span-3 xl:row-start-1">
+          <SectionHeading label="Recent activity" count={Math.min(10, currentFlowRuns.length + runs.length)} />
+          {loading ? (
+            <SkeletonRows rows={8} columns={3} />
+          ) : flowRunsQ.isError || runsQ.isError ? (
+            <ErrorState
+              error={flowRunsQ.error ?? runsQ.error}
+              onRetry={() => { flowRunsQ.refetch(); runsQ.refetch() }}
+              className="py-8"
+            />
+          ) : (
+            <RecentActivity flowRuns={currentFlowRuns} dagRuns={runs} />
+          )}
+        </section>
+
+        <section className="min-w-0 border-t border-border pt-4">
+          <SectionHeading label="DAG library" count={dags.length} to="/ui/dags" />
           {dagsQ.isLoading ? (
             <SkeletonRows rows={4} columns={5} />
           ) : dagsQ.isError ? (
             <ErrorState error={dagsQ.error} onRetry={() => dagsQ.refetch()} className="py-10" />
           ) : dags.length === 0 ? (
-            <EmptyDags />
+            <p className="py-8 text-[13px] text-ink-muted">No DAGs registered.</p>
           ) : (
-            <div>
-              <table className="w-full table-fixed">
-                <thead>
-                  <tr className="border-b border-border text-left font-mono text-[10px] font-medium uppercase tracking-[0.1em] text-ink-muted">
-                    <th className="py-2.5">Name</th>
-                    <th className="w-30 py-2.5">Last 20</th>
-                    <th className="hidden w-32 py-2.5 lg:table-cell">Duration</th>
-                    <th className="hidden w-25 py-2.5 text-right sm:table-cell">Runs</th>
-                    <th className="hidden w-22 py-2.5 text-right md:table-cell">Avg</th>
-                    <th className="hidden w-34 py-2.5 pl-4 lg:table-cell">Next</th>
+            <table className="w-full table-fixed">
+              <thead>
+                <tr className="border-b border-border text-left font-mono text-[10px] uppercase tracking-[0.1em] text-ink-muted">
+                  <th className="py-2.5">DAG</th>
+                  <th className="hidden w-30 py-2.5 sm:table-cell">Last 20</th>
+                  <th className="hidden w-32 py-2.5 lg:table-cell">Duration</th>
+                  <th className="w-25 py-2.5 text-right">Runs</th>
+                  <th className="hidden w-28 py-2.5 text-right md:table-cell">Role</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/60">
+                {dags.slice(0, 7).map((dag) => (
+                  <tr key={dag.dag_id} className="group">
+                    <td className="py-3">
+                      <Link to={`/ui/dags/${dag.dag_id}`} className="flex items-center gap-2 truncate text-[14px] text-ink hover:text-accent">
+                        {dag.is_running && <span className="size-1.5 shrink-0 rounded-full bg-accent" />}
+                        {dag.dag_id}
+                      </Link>
+                    </td>
+                    <td className="hidden py-3 sm:table-cell"><RunStrip runs={runsByDag.get(dag.dag_id) ?? []} max={20} /></td>
+                    <td className="hidden py-3 lg:table-cell"><Sparkline runs={runsByDag.get(dag.dag_id) ?? []} max={20} /></td>
+                    <td className="py-3 text-right font-mono text-[11px] text-ink-secondary">
+                      {dag.total_runs}
+                      {dag.total_runs > 0 && <span className={cn('ml-1.5', dag.success_rate < 80 ? 'text-error' : 'text-ink-muted')}>{formatRate(dag.success_rate)}</span>}
+                    </td>
+                    <td className="hidden py-3 text-right font-mono text-[10px] uppercase tracking-[0.06em] text-ink-muted md:table-cell">
+                      {flowDagIds.has(dag.dag_id) ? 'Flow node' : 'Standalone'}
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-border/60">
-                  {dags.slice(0, 8).map((d) => (
-                    <DAGRow key={d.dag_id} dag={d} runs={runsByDag.get(d.dag_id) ?? []} />
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                ))}
+              </tbody>
+            </table>
           )}
         </section>
 
-        {/* Recent runs — glanceable, not a second full-width log */}
-        <section className="min-w-0 border-t border-border pt-5 xl:col-start-2 xl:row-span-2 xl:row-start-1">
-          <div className="mb-4 flex items-baseline justify-between">
-            <h2 className="font-mono text-[11px] font-medium uppercase tracking-[0.1em] text-ink-muted">
-              Recent runs
-            </h2>
-            <span className="text-xs text-ink-muted">latest 8</span>
+        <section className="min-w-0 border-t border-border pt-4">
+          <div className="mb-3 flex items-baseline justify-between">
+            <h2 className="font-mono text-[11px] font-medium uppercase tracking-[0.1em] text-ink-muted">DAG activity · 14 days</h2>
+            <span className="text-[11px] text-ink-muted">success · duration · failures</span>
           </div>
           {runsQ.isLoading ? (
-            <SkeletonRows rows={6} columns={3} />
-          ) : runsQ.isError ? (
-            <ErrorState error={runsQ.error} onRetry={() => runsQ.refetch()} className="py-8" />
-          ) : runs.length === 0 ? (
-            <p className="py-6 text-sm text-ink-muted">No runs yet.</p>
-          ) : (
-            <div className="divide-y divide-border/60">
-              {runs.slice(0, 8).map((r) => (
-                <Link
-                  key={r.run_id}
-                  to={`/ui/runs/${r.run_id}`}
-                  className="group grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 py-2.5 transition-colors hover:bg-bg-raised/60"
-                >
-                  <StateBadge state={r.state} compact />
-                  <span className="min-w-0">
-                    <span className="block truncate text-[14px] text-ink group-hover:text-accent">
-                      {r.dag_id}
-                    </span>
-                    <span className="block truncate font-mono text-[11px] text-ink-muted">
-                      {r.run_id}
-                    </span>
-                  </span>
-                  <span className="text-right">
-                    <RelativeTime iso={r.start_time} className="block font-mono text-[11px] text-ink-muted" />
-                    <span className="block font-mono text-[11px] text-ink-secondary">
-                      {r.duration_seconds != null ? formatDuration(r.duration_seconds) : '—'}
-                    </span>
-                  </span>
-                </Link>
-              ))}
-            </div>
-          )}
-        </section>
-
-        {/* Trend is useful context, but secondary to live operational state. */}
-        <section className="min-w-0 border-t border-border pt-5 xl:col-start-1">
-          <div className="mb-3 flex items-baseline justify-between">
-            <h2 className="font-mono text-[11px] font-medium uppercase tracking-[0.1em] text-ink-muted">
-              Activity · 14 days
-            </h2>
-            <span className="text-xs text-ink-muted">
-              success · duration · failures
-            </span>
-          </div>
-          {loading ? (
-            <div className="h-52 animate-pulse rounded-sm bg-bg-raised/60" />
-          ) : runsQ.isError ? (
-            <ErrorState error={runsQ.error} onRetry={() => runsQ.refetch()} className="py-10" />
+            <div className="h-44 animate-pulse rounded-sm bg-bg-raised/60" />
           ) : (
             <ActivityChart runs={runs} days={14} />
           )}
@@ -181,173 +203,106 @@ export function Dashboard() {
   )
 }
 
-/* ─── Headline ──────────────────────────────────────── */
-
-interface HeadlineProps {
+function Headline({
+  loading, flowCount, dagCount, runningFlows, failedFlows,
+}: {
   loading: boolean
+  flowCount: number
   dagCount: number
-  runningCount: number
-  recentFailures: number
-  totalLast24h: number
-  latestRun?: DAGRun
-}
-
-function Headline({ loading, dagCount, runningCount, recentFailures, totalLast24h, latestRun }: HeadlineProps) {
-  if (loading) {
-    return (
-      <div className="space-y-3">
-        <div className="h-10 w-3/4 animate-pulse rounded-sm bg-bg-surface/80" />
-        <div className="h-4 w-1/3 animate-pulse rounded-sm bg-bg-surface/80" />
-      </div>
-    )
+  runningFlows: number
+  failedFlows: number
+}) {
+  if (loading) return <div className="h-11 w-3/4 animate-pulse rounded-sm bg-bg-surface/80" />
+  if (flowCount === 0 && dagCount === 0) {
+    return <h1 className="font-display text-[36px] leading-[1.05] sm:text-[42px]">No workflows registered yet.</h1>
   }
-
-  if (dagCount === 0) {
+  if (failedFlows > 0) {
     return (
-      <h1 className="font-display text-[42px] font-normal leading-[1.05] tracking-[-0.015em] text-ink">
-        No pipelines registered yet.
+      <h1 className="font-display text-[36px] leading-[1.05] sm:text-[42px]">
+        <em className="not-italic text-error">{failedFlows}</em>{' '}
+        recent {failedFlows === 1 ? 'Flow needs' : 'Flows need'} attention.
       </h1>
     )
   }
-
-  // Choose the most newsworthy fact as the headline
-  const body = (() => {
-    if (recentFailures > 0) {
-      return (
-        <>
-          <em className="font-display not-italic text-error">
-            {recentFailures}
-          </em>
-          {' '}
-          <span className="text-ink">
-            {recentFailures === 1 ? 'failure' : 'failures'} in the last 24 hours
-          </span>
-          <span className="text-ink-muted"> across {dagCount} {dagCount === 1 ? 'DAG' : 'DAGs'}.</span>
-        </>
-      )
-    }
-    if (runningCount > 0) {
-      return (
-        <>
-          <em className="font-display not-italic text-accent">
-            {runningCount}
-          </em>
-          {' '}
-          <span className="text-ink">of {dagCount} {dagCount === 1 ? 'pipeline' : 'pipelines'} running</span>
-          <span className="text-ink-muted"> right now.</span>
-        </>
-      )
-    }
+  if (runningFlows > 0) {
     return (
-      <>
-        <em className="font-display not-italic text-success">
-          {dagCount === 1 ? dagCount : `All ${dagCount}`}
-        </em>
-        {' '}
-        <span className="text-ink">{dagCount === 1 ? 'pipeline is' : 'pipelines are'} healthy.</span>
-      </>
+      <h1 className="font-display text-[36px] leading-[1.05] sm:text-[42px]">
+        <em className="not-italic text-accent">{runningFlows}</em>{' '}
+        {runningFlows === 1 ? 'Flow is' : 'Flows are'} running now.
+      </h1>
     )
-  })()
-
+  }
   return (
-    <div className="space-y-4">
-      <h1 className="font-display text-[36px] font-normal leading-[1.05] tracking-[-0.015em] sm:text-[42px]">
-        {body}
+    <div>
+      <h1 className="font-display text-[36px] leading-[1.05] sm:text-[42px]">
+        <em className="not-italic text-success">{flowCount || dagCount}</em>{' '}
+        {flowCount > 0 ? `${flowCount === 1 ? 'Flow' : 'Flows'} ready.` : `${dagCount === 1 ? 'DAG' : 'DAGs'} ready.`}
       </h1>
-      <p className="font-mono text-[12px] uppercase tracking-[0.08em] text-ink-muted">
-        {totalLast24h} {totalLast24h === 1 ? 'run' : 'runs'} in last 24h
-        {latestRun && (
-          <>
-            <span className="mx-2">·</span>
-            latest{' '}
-            <Link to={`/ui/runs/${latestRun.run_id}`} className="normal-case text-ink-secondary transition-colors hover:text-accent">
-              {latestRun.dag_id}
-            </Link>
-            {' '}
-            <RelativeTime iso={latestRun.start_time} className="normal-case" />
-          </>
-        )}
+      <p className="mt-3 font-mono text-[11px] uppercase tracking-[0.08em] text-ink-muted">
+        {dagCount} reusable {dagCount === 1 ? 'DAG' : 'DAGs'} registered
       </p>
     </div>
   )
 }
 
-/* ─── DAG row ───────────────────────────────────────── */
-
-function DAGRow({ dag, runs }: { dag: DAGSummary; runs: DAGRun[] }) {
-  const prefetch = usePrefetchDag(dag.dag_id)
+function SectionHeading({ label, count, to }: { label: string; count: number; to?: string }) {
   return (
-    <tr className="group">
-      <td className="py-3.5">
-        <Link
-          to={`/ui/dags/${dag.dag_id}`}
-          onMouseEnter={prefetch}
-          onFocus={prefetch}
-          className="flex items-center gap-2 text-[14px] text-ink transition-colors hover:text-accent"
-        >
-          {dag.is_running && (
-            <span className="size-1.5 shrink-0 rounded-full bg-accent" title="Running" />
-          )}
-          <span className="truncate">{dag.dag_id}</span>
-        </Link>
-      </td>
-      <td className="py-3.5">
-        <RunStrip runs={runs} max={20} />
-      </td>
-      <td className="hidden py-3.5 lg:table-cell">
-        <Sparkline runs={runs} max={20} />
-      </td>
-      <td className="hidden py-3.5 text-right font-mono text-[12px] tabular-nums sm:table-cell">
-        <span className="text-ink">{dag.total_runs}</span>
-        {dag.total_runs > 0 && (
-          <span className={cn('ml-1.5', successRateClass(dag.success_rate))}>
-            {formatRate(dag.success_rate)}
-          </span>
-        )}
-      </td>
-      <td className="hidden py-3.5 text-right font-mono text-[12px] text-ink-secondary md:table-cell">
-        {dag.avg_duration_seconds > 0 ? formatDuration(dag.avg_duration_seconds) : '—'}
-      </td>
-      <td className="hidden py-3.5 pl-4 font-mono text-[12px] text-ink-muted lg:table-cell">
-        {dag.next_run ? (
-          <RelativeTime iso={dag.next_run} />
-        ) : dag.schedule_display ? (
-          <span>{dag.schedule_display}</span>
-        ) : (
-          <span>manual</span>
-        )}
-      </td>
-    </tr>
+    <div className="mb-3 flex items-baseline justify-between">
+      <h2 className="font-mono text-[11px] font-medium uppercase tracking-[0.1em] text-ink-muted">{label}</h2>
+      {to ? (
+        <Link to={to} className="text-[11px] text-ink-muted hover:text-accent">{count} · view all →</Link>
+      ) : (
+        <span className="font-mono text-[10px] text-ink-muted">{count}</span>
+      )}
+    </div>
   )
 }
 
-function successRateClass(rate: number): string {
-  if (rate >= 95) return 'text-ink-muted'
-  if (rate >= 80) return 'text-warning'
-  return 'text-error'
+function RecentActivity({ flowRuns, dagRuns }: { flowRuns: FlowRun[]; dagRuns: DAGRun[] }) {
+  const items = [
+    ...flowRuns.map((run) => ({ kind: 'Flow' as const, time: run.start_time, run })),
+    ...dagRuns.map((run) => ({ kind: 'DAG' as const, time: run.start_time, run })),
+  ]
+    .sort((a, b) => new Date(b.time ?? 0).getTime() - new Date(a.time ?? 0).getTime())
+    .slice(0, 10)
+
+  if (items.length === 0) return <p className="py-6 text-[13px] text-ink-muted">No runs yet.</p>
+  return (
+    <div className="divide-y divide-border/60">
+      {items.map(({ kind, run }) => {
+        const id = kind === 'Flow' ? (run as FlowRun).flow_id : (run as DAGRun).dag_id
+        const to = kind === 'Flow'
+          ? `/ui/flows/${id}/runs/${run.run_id}`
+          : `/ui/runs/${run.run_id}`
+        return (
+          <Link key={`${kind}:${run.run_id}`} to={to} className="group grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 py-2.5">
+            <StateBadge state={run.state} compact />
+            <span className="min-w-0">
+              <span className="flex items-baseline gap-2">
+                <span className="truncate text-[14px] text-ink group-hover:text-accent">{id}</span>
+                <span className="shrink-0 font-mono text-[9px] uppercase tracking-[0.08em] text-ink-muted">{kind}</span>
+              </span>
+              <span className="block truncate font-mono text-[10px] text-ink-muted">{run.run_id}</span>
+            </span>
+            <span className="text-right">
+              <RelativeTime iso={run.start_time} className="block font-mono text-[10px] text-ink-muted" />
+              <span className="block font-mono text-[10px] text-ink-secondary">{formatDuration(run.duration_seconds)}</span>
+            </span>
+          </Link>
+        )
+      })}
+    </div>
+  )
 }
 
-/* ─── Empty state — real code, not decoration ──────── */
-
-function EmptyDags() {
+function FlowEmpty({ hasDags }: { hasDags: boolean }) {
   return (
-    <div className="border-l-2 border-ink/80 pl-6">
-      <p className="text-sm text-ink-secondary">
-        Register a DAG from your Python application:
+    <div className="border-l-2 border-ink/80 py-1 pl-5">
+      <h2 className="font-display text-[22px] text-ink">{hasDags ? 'Your DAGs are ready to connect.' : 'Start with a DAG, then connect the work.'}</h2>
+      <p className="mt-2 max-w-2xl text-[13px] leading-5 text-ink-secondary">
+        Flows coordinate complete processes across DAG boundaries. DAGs remain independently runnable and reusable.
       </p>
-      <pre className="mt-4 overflow-x-auto bg-bg-inset p-5 font-mono text-[13px] leading-[1.7] text-ink-secondary">
-{`from riverflow import DAG, serve
-
-with DAG(dag_id="my_pipeline") as dag:
-    @dag.task("hello")
-    async def hello():
-        print("hi")
-
-serve(dag)`}
-      </pre>
-      <p className="mt-3 font-mono text-[12px] text-ink-muted">
-        Refresh this page once the server reloads.
-      </p>
+      {hasDags && <Link to="/ui/dags" className="mt-3 inline-block text-[12px] text-accent hover:underline">View registered DAGs →</Link>}
     </div>
   )
 }

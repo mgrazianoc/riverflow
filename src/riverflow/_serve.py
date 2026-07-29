@@ -18,33 +18,45 @@ from threading import Timer
 from typing import Any, Iterable, Optional, Union
 
 from .core.dag import DAG
+from .core.flow import Flow, FlowRunHistory
 from .core.riverflow import Riverflow, DAGRunHistory
 from .core.logger import get_logger
 
 
-DagSource = Union[DAG, Iterable[DAG], str, Path, None]
+Workflow = Union[DAG, Flow]
+WorkflowSource = Union[Workflow, Iterable[Workflow], str, Path, None]
+DagSource = WorkflowSource
+
+
+def _coerce_workflows(source: WorkflowSource) -> list[Workflow]:
+    """Resolve a high-level workflow argument into DAGs and Flows."""
+    if source is None:
+        return []
+    if isinstance(source, (DAG, Flow)):
+        return [source]
+    if isinstance(source, (str, Path)):
+        return _load_workflows_from_path(Path(source))
+    workflows = list(source)
+    for workflow in workflows:
+        if not isinstance(workflow, (DAG, Flow)):
+            raise TypeError(
+                f"Expected DAG or Flow, got {type(workflow).__name__}. "
+                "Pass a workflow, an iterable of workflows, or a Python file."
+            )
+    return workflows
 
 
 def _coerce_dags(source: DagSource) -> list[DAG]:
-    """Resolve a ``serve()`` / ``run()`` DAG argument into a concrete list."""
-    if source is None:
-        return []
-    if isinstance(source, DAG):
-        return [source]
-    if isinstance(source, (str, Path)):
-        return _load_dags_from_path(Path(source))
-    dags = list(source)
-    for d in dags:
-        if not isinstance(d, DAG):
-            raise TypeError(
-                f"Expected DAG, got {type(d).__name__}. "
-                "Pass a DAG, a list of DAGs, or a path to a Python file."
-            )
+    """Backward-compatible DAG-only coercion helper."""
+    values = _coerce_workflows(source)
+    dags = [value for value in values if isinstance(value, DAG)]
+    if len(dags) != len(values):
+        raise TypeError("Expected DAG, but received a Flow.")
     return dags
 
 
-def _load_dags_from_path(path: Path) -> list[DAG]:
-    """Import a Python file and collect every top-level ``DAG`` it defines."""
+def _load_workflows_from_path(path: Path) -> list[Workflow]:
+    """Import a Python file and collect its top-level DAGs and Flows."""
     path = path.expanduser().resolve()
     if not path.exists():
         raise FileNotFoundError(f"No such file: {path}")
@@ -71,12 +83,24 @@ def _load_dags_from_path(path: Path) -> list[DAG]:
     finally:
         sys.path[:] = original_sys_path
 
-    dags = []
+    workflows = []
     seen = set()
     for value in vars(module).values():
-        if isinstance(value, DAG) and id(value) not in seen:
+        if isinstance(value, (DAG, Flow)) and id(value) not in seen:
             seen.add(id(value))
-            dags.append(value)
+            workflows.append(value)
+    if not workflows:
+        raise ValueError(
+            f"No DAG or Flow instances found in {path}. "
+            "Define at least one workflow at module scope."
+        )
+    return workflows
+
+
+def _load_dags_from_path(path: Path) -> list[DAG]:
+    """Import a Python file and collect every top-level DAG it defines."""
+    workflows = _load_workflows_from_path(path)
+    dags = [workflow for workflow in workflows if isinstance(workflow, DAG)]
     if not dags:
         raise ValueError(
             f"No DAG instances found in {path}. "
@@ -86,7 +110,7 @@ def _load_dags_from_path(path: Path) -> list[DAG]:
 
 
 def serve(
-    dags: DagSource = None,
+    dags: WorkflowSource = None,
     *,
     host: str = "127.0.0.1",
     port: int = 8083,
@@ -132,14 +156,17 @@ def serve(
     logger = get_logger(component="RiverFlow")
     riverflow = Riverflow.get_instance()
 
-    for dag in _coerce_dags(dags):
-        riverflow.register_dag(dag)
+    for workflow in _coerce_workflows(dags):
+        if isinstance(workflow, Flow):
+            riverflow.register_flow(workflow)
+        else:
+            riverflow.register_dag(workflow)
 
     registered = riverflow.get_registered_dags()
-    if not registered:
+    if not registered and not riverflow.get_registered_flows():
         logger.warning(
-            "serve() called with no DAGs registered. "
-            "Pass a DAG, a list, or a path — e.g. serve(my_dag) or serve('dags.py')."
+            "serve() called with no workflows registered. "
+            "Pass a DAG, Flow, iterable, or Python path."
         )
 
     app = create_riverflow_api(riverflow)
@@ -157,15 +184,15 @@ def serve(
 
 
 def run(
-    dag: DAG,
+    dag: Workflow,
     *,
     setup_logging: bool = True,
     metadata: dict[str, Any] | None = None,
     trigger_mode: str | None = None,
     requested_by: str | None = None,
-) -> DAGRunHistory:
+) -> DAGRunHistory | FlowRunHistory:
     """
-    Execute a DAG once, synchronously, and return its run history.
+    Execute a DAG or Flow once, synchronously, and return its run history.
 
     Useful for scripts, tests, and CI jobs where the HTTP server is
     overkill::
@@ -179,7 +206,8 @@ def run(
         assert history.state.value == "success"
 
     Args:
-        dag: The DAG to execute.
+        dag: The DAG or Flow to execute. The name stays ``dag`` for backward
+            compatibility with callers that use the keyword argument.
         setup_logging: If True (default), install Riverflow's formatter.
         metadata: Arbitrary metadata attached to this run.
         trigger_mode: Optional caller-defined trigger intent.
@@ -204,21 +232,36 @@ def run(
         setup_unified_logging()
 
     riverflow = Riverflow.get_instance()
-    if dag.dag_id not in riverflow.get_registered_dags():
-        riverflow.register_dag(dag)
-
-    history = asyncio.run(
-        riverflow.trigger(
-            dag.dag_id,
-            wait=True,
-            metadata=metadata,
-            trigger_source="manual",
-            trigger_mode=trigger_mode,
-            requested_by=requested_by,
+    if isinstance(dag, Flow):
+        if dag.flow_id not in riverflow.get_registered_flows():
+            riverflow.register_flow(dag)
+        history = asyncio.run(
+            riverflow.trigger_flow(
+                dag.flow_id,
+                wait=True,
+                parameters=metadata,
+                trigger_source="manual",
+                trigger_mode=trigger_mode,
+                requested_by=requested_by,
+            )
         )
-    )
+        workflow_type, workflow_id = "Flow", dag.flow_id
+    else:
+        if dag.dag_id not in riverflow.get_registered_dags():
+            riverflow.register_dag(dag)
+        history = asyncio.run(
+            riverflow.trigger(
+                dag.dag_id,
+                wait=True,
+                metadata=metadata,
+                trigger_source="manual",
+                trigger_mode=trigger_mode,
+                requested_by=requested_by,
+            )
+        )
+        workflow_type, workflow_id = "DAG", dag.dag_id
     if history is None:
         raise RuntimeError(
-            f"DAG '{dag.dag_id}' was already running; run() cannot proceed."
+            f"{workflow_type} '{workflow_id}' was already running; run() cannot proceed."
         )
     return history

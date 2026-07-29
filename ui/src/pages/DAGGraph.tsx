@@ -149,9 +149,9 @@ function FlowCanvas({ graph, dagId }: { graph: DAGGraph; dagId: string }) {
 
   const onNodeClick: NodeMouseHandler = useCallback((_event, node) => {
     setSelectedTask((prev) => (prev === node.id ? null : node.id))
-  }, [])
+  }, [setSelectedTask])
 
-  const onPaneClick = useCallback(() => setSelectedTask(null), [])
+  const onPaneClick = useCallback(() => setSelectedTask(null), [setSelectedTask])
   const selectedNode = graph.nodes.find((node) => node.id === selectedTask)
   const failedTasks = graph.nodes.filter(
     (node) => node.state === 'failed' || node.state === 'upstream_failed' || node.state === 'timeout',

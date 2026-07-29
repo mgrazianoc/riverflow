@@ -34,21 +34,35 @@ def _cmd_serve(args: argparse.Namespace) -> int:
 
 
 def _cmd_run(args: argparse.Namespace) -> int:
-    from ._serve import _load_dags_from_path, run
+    from ._serve import _load_workflows_from_path, run
 
-    dags = _load_dags_from_path(Path(args.path))
-    target = next((d for d in dags if d.dag_id == args.dag_id), None)
+    workflows = _load_workflows_from_path(Path(args.path))
+    target = next(
+        (
+            workflow
+            for workflow in workflows
+            if getattr(workflow, "dag_id", None) == args.workflow_id
+            or getattr(workflow, "flow_id", None) == args.workflow_id
+        ),
+        None,
+    )
     if target is None:
-        ids = ", ".join(sorted(d.dag_id for d in dags)) or "(none)"
+        ids = ", ".join(
+            sorted(
+                getattr(workflow, "dag_id", getattr(workflow, "flow_id", ""))
+                for workflow in workflows
+            )
+        ) or "(none)"
         print(
-            f"error: no DAG with id '{args.dag_id}' in {args.path}. "
+            f"error: no DAG or Flow with id '{args.workflow_id}' in {args.path}. "
             f"Available: {ids}",
             file=sys.stderr,
         )
         return 2
 
     history = run(target)
-    print(f"{history.dag_id} {history.run_id} -> {history.state.value}")
+    workflow_id = getattr(history, "dag_id", getattr(history, "flow_id", ""))
+    print(f"{workflow_id} {history.run_id} -> {history.state.value}")
     return 0 if history.state.value == "success" else 1
 
 
@@ -73,9 +87,9 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_serve.set_defaults(func=_cmd_serve)
 
-    p_run = sub.add_parser("run", help="Execute a single DAG synchronously.")
-    p_run.add_argument("path", help="Python file defining the DAG.")
-    p_run.add_argument("dag_id", help="ID of the DAG to execute.")
+    p_run = sub.add_parser("run", help="Execute a DAG or Flow synchronously.")
+    p_run.add_argument("path", help="Python file defining the workflow.")
+    p_run.add_argument("workflow_id", help="ID of the DAG or Flow to execute.")
     p_run.set_defaults(func=_cmd_run)
 
     p_ver = sub.add_parser("version", help="Print the installed version.")

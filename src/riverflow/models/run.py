@@ -38,3 +38,5 @@ class DAGRunModel(BaseModel):
     trigger_mode: Optional[str] = None
     requested_by: Optional[str] = None
     force: bool = False
+    parent_flow_run_id: Optional[str] = None
+    flow_node_id: Optional[str] = None

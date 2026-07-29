@@ -12,6 +12,9 @@ class StatusModel(BaseModel):
     running_dags: list[str]
     total_history: int
     active_connections: int
+    registered_flows: list[str] = Field(default_factory=list)
+    running_flows: list[str] = Field(default_factory=list)
+    total_flow_history: int = 0
 
 
 class APIInfoModel(BaseModel):

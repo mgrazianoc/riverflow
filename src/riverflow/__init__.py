@@ -22,6 +22,7 @@ __version__ = _v("riverflow")
 
 from . import core, models, server
 from .core.dag import DAG
+from .core.flow import ConcurrencyPolicy, Flow
 from .core.logger import get_logger, get_task_logger
 from .core.riverflow import Riverflow
 from .core.run_context import RunContext, get_run_context
@@ -31,6 +32,8 @@ from ._serve import run, serve
 __all__ = [
     # High-level API
     "DAG",
+    "Flow",
+    "ConcurrencyPolicy",
     "Task",
     "Riverflow",
     "RunContext",

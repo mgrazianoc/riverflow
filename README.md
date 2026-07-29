@@ -46,6 +46,20 @@ serve(dag)
 
 Open `http://localhost:8083/ui`.
 
+The repository also includes a local showcase with two DAGs and a Flow that
+connects them:
+
+```bash
+uv run python src/main.py --open
+```
+
+For UI or API development, start a blank Riverflow with no registered
+workflows:
+
+```bash
+uv run python src/main.py --blank --open
+```
+
 Or skip the Python bootstrap entirely:
 
 ```bash
@@ -60,9 +74,39 @@ history = run(dag)
 assert history.state.value == "success"
 ```
 
+## Flows
+
+A DAG organizes tasks. A Flow organizes DAG runs without flattening their
+history, logs, schedules, or ownership boundaries.
+
+```python
+from riverflow import DAG, Flow, serve
+
+with DAG("ibge_extract") as extract:
+    @extract.task("download")
+    async def download(): ...
+
+with DAG("medallion") as medallion:
+    @medallion.task("promote")
+    async def promote(): ...
+
+with Flow("ibge_pipeline", schedule="0 3 * * *") as flow:
+    source = flow.add_dag(extract, parameters={"scope": "ibge"})
+    layers = flow.add_dag(medallion, parameters={"scope": "ibge"})
+    source >> layers
+
+serve(flow)
+```
+
+Each Flow node creates a normal DAG run with explicit parent Flow and node
+lineage. Independent branches run concurrently. A node can `queue`, `reject`,
+or `force` when its DAG is already running.
+
 ## Features
 
-**Orchestration.** DAGs with `>>` dependencies. Cron and interval schedules. Retries, timeouts, trigger rules. Async tasks by default.
+**Orchestration.** Tasks compose into DAGs; DAG runs compose into Flows. Both
+support `>>` dependencies, schedules, trigger rules, and concurrent branches.
+DAG tasks also support retries and timeouts.
 
 **UI.** A Broadsheet-flavoured single-page app. Overview, DAG detail (graph / overview / history / grid / gantt / tasks), run detail with live logs, and a built-in **Host** page for on-box CPU, memory, disk, and network — four charts in a 2×2 grid with a synchronised crosshair.
 

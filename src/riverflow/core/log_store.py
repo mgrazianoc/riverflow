@@ -59,12 +59,45 @@ class LogStore:
                 trigger_source TEXT,
                 trigger_mode TEXT,
                 requested_by TEXT,
-                force INTEGER NOT NULL DEFAULT 0
+                force INTEGER NOT NULL DEFAULT 0,
+                parent_flow_run_id TEXT,
+                flow_node_id TEXT
             );
             CREATE INDEX IF NOT EXISTS idx_dag_runs_dag
                 ON dag_runs(dag_id);
             CREATE INDEX IF NOT EXISTS idx_dag_runs_start
                 ON dag_runs(start_time);
+
+            CREATE TABLE IF NOT EXISTS flow_runs (
+                run_id TEXT PRIMARY KEY,
+                flow_id TEXT NOT NULL,
+                state TEXT NOT NULL,
+                start_time TEXT,
+                end_time TEXT,
+                node_states TEXT,
+                dag_run_ids TEXT,
+                node_errors TEXT,
+                error TEXT,
+                parameters TEXT,
+                trigger_source TEXT,
+                trigger_mode TEXT,
+                requested_by TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_flow_runs_flow
+                ON flow_runs(flow_id);
+            CREATE INDEX IF NOT EXISTS idx_flow_runs_start
+                ON flow_runs(start_time);
+
+            CREATE TABLE IF NOT EXISTS flow_node_runs (
+                flow_run_id TEXT NOT NULL,
+                node_id TEXT NOT NULL,
+                dag_run_id TEXT,
+                state TEXT NOT NULL,
+                error TEXT,
+                PRIMARY KEY (flow_run_id, node_id),
+                FOREIGN KEY (flow_run_id) REFERENCES flow_runs(run_id)
+                    ON DELETE CASCADE
+            );
             """
         )
         self._ensure_dag_run_columns(conn)
@@ -82,6 +115,10 @@ class LogStore:
             "trigger_mode": "ALTER TABLE dag_runs ADD COLUMN trigger_mode TEXT",
             "requested_by": "ALTER TABLE dag_runs ADD COLUMN requested_by TEXT",
             "force": "ALTER TABLE dag_runs ADD COLUMN force INTEGER NOT NULL DEFAULT 0",
+            "parent_flow_run_id": (
+                "ALTER TABLE dag_runs ADD COLUMN parent_flow_run_id TEXT"
+            ),
+            "flow_node_id": "ALTER TABLE dag_runs ADD COLUMN flow_node_id TEXT",
         }
         for column, statement in migrations.items():
             if column not in columns:
@@ -145,14 +182,17 @@ class LogStore:
         trigger_mode: Optional[str] = None,
         requested_by: Optional[str] = None,
         force: bool = False,
+        parent_flow_run_id: Optional[str] = None,
+        flow_node_id: Optional[str] = None,
     ) -> None:
         """Persist a DAG run record (insert or update)."""
         conn = self._get_conn()
         conn.execute(
             "INSERT OR REPLACE INTO dag_runs "
             "(run_id, dag_id, state, start_time, end_time, task_states, error, "
-            "metadata, trigger_source, trigger_mode, requested_by, force) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "metadata, trigger_source, trigger_mode, requested_by, force, "
+            "parent_flow_run_id, flow_node_id) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 run_id,
                 dag_id,
@@ -166,6 +206,8 @@ class LogStore:
                 trigger_mode,
                 requested_by,
                 1 if force else 0,
+                parent_flow_run_id,
+                flow_node_id,
             ),
         )
         conn.commit()
@@ -235,6 +277,108 @@ class LogStore:
             # Also remove orphaned logs produced before a run record was saved.
             conn.execute("DELETE FROM task_logs WHERE dag_id = ?", (dag_id,))
             conn.execute("DELETE FROM dag_runs WHERE dag_id = ?", (dag_id,))
+        conn.commit()
+        return int(count)
+
+    # ========== Flow Runs ==========
+
+    def save_flow_run(
+        self,
+        *,
+        run_id: str,
+        flow_id: str,
+        state: str,
+        start_time: Optional[datetime],
+        end_time: Optional[datetime],
+        node_states: Dict[str, str],
+        dag_run_ids: Dict[str, str],
+        node_errors: Dict[str, str],
+        error: Optional[str],
+        parameters: Optional[Dict[str, Any]] = None,
+        trigger_source: Optional[str] = None,
+        trigger_mode: Optional[str] = None,
+        requested_by: Optional[str] = None,
+    ) -> None:
+        """Persist a Flow run and its node-to-DAG-run lineage."""
+        conn = self._get_conn()
+        conn.execute(
+            "INSERT OR REPLACE INTO flow_runs "
+            "(run_id, flow_id, state, start_time, end_time, node_states, "
+            "dag_run_ids, node_errors, error, parameters, trigger_source, "
+            "trigger_mode, requested_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                run_id,
+                flow_id,
+                state,
+                start_time.isoformat() if start_time else None,
+                end_time.isoformat() if end_time else None,
+                json.dumps(node_states),
+                json.dumps(dag_run_ids),
+                json.dumps(node_errors),
+                error,
+                json.dumps(parameters or {}),
+                trigger_source,
+                trigger_mode,
+                requested_by,
+            ),
+        )
+        conn.execute("DELETE FROM flow_node_runs WHERE flow_run_id = ?", (run_id,))
+        conn.executemany(
+            "INSERT INTO flow_node_runs "
+            "(flow_run_id, node_id, dag_run_id, state, error) VALUES (?, ?, ?, ?, ?)",
+            [
+                (
+                    run_id,
+                    node_id,
+                    dag_run_ids.get(node_id),
+                    node_state,
+                    node_errors.get(node_id),
+                )
+                for node_id, node_state in node_states.items()
+            ],
+        )
+        conn.commit()
+
+    def get_flow_runs(
+        self, flow_id: Optional[str] = None, limit: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        """Query Flow run history, most recent first."""
+        conn = self._get_conn()
+        query = "SELECT * FROM flow_runs"
+        params: list[Any] = []
+        if flow_id:
+            query += " WHERE flow_id = ?"
+            params.append(flow_id)
+        query += " ORDER BY start_time DESC"
+        if limit:
+            query += " LIMIT ?"
+            params.append(limit)
+        rows = conn.execute(query, params).fetchall()
+        result = []
+        for row in rows:
+            value = dict(row)
+            for column in ("node_states", "dag_run_ids", "node_errors", "parameters"):
+                value[column] = json.loads(value.get(column) or "{}")
+            result.append(value)
+        return result
+
+    def clear_flow_runs(self, flow_id: Optional[str] = None) -> int:
+        """Delete persisted Flow runs and node lineage records."""
+        conn = self._get_conn()
+        if flow_id is None:
+            count = conn.execute("SELECT COUNT(*) FROM flow_runs").fetchone()[0]
+            conn.execute("DELETE FROM flow_node_runs")
+            conn.execute("DELETE FROM flow_runs")
+        else:
+            count = conn.execute(
+                "SELECT COUNT(*) FROM flow_runs WHERE flow_id = ?", (flow_id,)
+            ).fetchone()[0]
+            conn.execute(
+                "DELETE FROM flow_node_runs WHERE flow_run_id IN "
+                "(SELECT run_id FROM flow_runs WHERE flow_id = ?)",
+                (flow_id,),
+            )
+            conn.execute("DELETE FROM flow_runs WHERE flow_id = ?", (flow_id,))
         conn.commit()
         return int(count)
 

@@ -11,6 +11,7 @@ from typing import Optional
 from ..core.dag import DAG
 from ..core.task import Task
 from ..core.riverflow import DAGRunHistory
+from ..core.flow import Flow, FlowRunHistory
 
 from .dag import (
     DAGEdgeModel,
@@ -23,6 +24,12 @@ from .run import DAGRunModel, DAGRunStateEnum
 from .task import TaskModel, TaskStateEnum, TriggerRuleEnum
 from .log import LogEntryModel, TaskLogsModel
 from .status import DashboardModel, ScheduledDAGModel
+from .flow import (
+    FlowModel,
+    FlowNodeModel,
+    FlowRunModel,
+    FlowRunStateEnum,
+)
 
 
 # ────────────────────────────────────────
@@ -183,6 +190,59 @@ def run_to_model(run: DAGRunHistory) -> DAGRunModel:
         trigger_mode=run.run_context.trigger_mode,
         requested_by=run.run_context.requested_by,
         force=run.run_context.force,
+        parent_flow_run_id=run.run_context.parent_flow_run_id,
+        flow_node_id=run.run_context.flow_node_id,
+    )
+
+
+def flow_to_model(
+    flow: Flow, is_running: bool, next_run=None
+) -> FlowModel:
+    return FlowModel(
+        flow_id=flow.flow_id,
+        description=flow.description,
+        timezone=flow.timezone,
+        schedule_display=_format_schedule(flow.schedule),
+        next_run=next_run,
+        is_running=is_running,
+        nodes=[
+            FlowNodeModel(
+                node_id=node.node_id,
+                dag_id=node.dag.dag_id,
+                upstream_node_ids=[
+                    upstream.node_id for upstream in node.upstream_nodes
+                ],
+                trigger_rule=TriggerRuleEnum(node.trigger_rule.value),
+                concurrency=node.concurrency.value,
+                parameters=node.parameters,
+            )
+            for node in flow.nodes.values()
+        ],
+    )
+
+
+def flow_run_to_model(run: FlowRunHistory) -> FlowRunModel:
+    duration = None
+    if run.start_time and run.end_time:
+        duration = (run.end_time - run.start_time).total_seconds()
+    return FlowRunModel(
+        flow_id=run.flow_id,
+        run_id=run.run_id,
+        state=FlowRunStateEnum(run.state.value),
+        start_time=run.start_time,
+        end_time=run.end_time,
+        duration_seconds=duration,
+        node_states={
+            node_id: TaskStateEnum(state.value)
+            for node_id, state in run.node_states.items()
+        },
+        dag_run_ids=run.dag_run_ids,
+        node_errors=run.node_errors,
+        error=run.error,
+        parameters=run.parameters,
+        trigger_source=run.trigger_source,
+        trigger_mode=run.trigger_mode,
+        requested_by=run.requested_by,
     )
 
 

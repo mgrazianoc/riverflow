@@ -17,6 +17,8 @@ class RunContext:
     requested_by: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
     force: bool = False
+    parent_flow_run_id: str | None = None
+    flow_node_id: str | None = None
 
     def with_run(
         self,

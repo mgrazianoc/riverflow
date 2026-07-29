@@ -1,7 +1,7 @@
 import { useQueryClient, type QueryKey } from '@tanstack/react-query'
 import { useCallback } from 'react'
 import { useWebSocket } from './useWebSocket'
-import type { DAGRun, DAGSummary, DAGDetail } from '../types'
+import type { DAGRun, DAGSummary, DAGDetail, FlowRun, Flow } from '../types'
 
 /**
  * Connects to /ws and applies targeted React Query cache updates so the UI
@@ -49,6 +49,28 @@ export function useLiveUpdates() {
           // Stats (success_rate, totals) need a fresh read on terminal states.
           qc.invalidateQueries({ queryKey: ['dag', run.dag_id] })
           qc.invalidateQueries({ queryKey: ['dags'] })
+        }
+      } else if (msg.type === 'flow_update' && msg.data) {
+        const run = msg.data as FlowRun
+        qc.setQueriesData<FlowRun[] | undefined>({ queryKey: ['flow-history'] }, (prev) => {
+          if (!prev) return prev
+          const idx = prev.findIndex((value) => value.run_id === run.run_id)
+          if (idx < 0) return [run, ...prev]
+          const next = prev.slice()
+          next[idx] = run
+          return next
+        })
+        qc.setQueryData<Flow[] | undefined>(['flows'], (prev) =>
+          prev?.map((flow) => flow.flow_id === run.flow_id
+            ? { ...flow, is_running: run.state === 'running' }
+            : flow),
+        )
+        qc.setQueryData<Flow | undefined>(['flow', run.flow_id], (prev) =>
+          prev ? { ...prev, is_running: run.state === 'running' } : prev,
+        )
+        if (run.state !== 'running') {
+          qc.invalidateQueries({ queryKey: ['flows'] })
+          qc.invalidateQueries({ queryKey: ['flow', run.flow_id] })
         }
       } else if (msg.type === 'current_runs') {
         // Initial sync after (re)connect.

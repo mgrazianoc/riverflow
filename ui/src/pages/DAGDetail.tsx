@@ -34,7 +34,15 @@ export function DAGDetail() {
     enabled: !!dagId,
     refetchInterval: 5000,
   })
+  const flowsQ = useQuery({
+    queryKey: ['flows'],
+    queryFn: api.getFlows,
+    refetchInterval: 5000,
+  })
   const dag = dagQ.data
+  const parentFlows = (flowsQ.data ?? []).filter((flow) =>
+    flow.nodes.some((node) => node.dag_id === dagId),
+  )
 
   const trigger = useMutation({
     mutationFn: (payload?: TriggerRunRequest) => api.triggerDag(dagId!, payload),
@@ -83,6 +91,21 @@ export function DAGDetail() {
             <span className="hidden shrink-0 font-mono text-[11px] tabular-nums text-ink-muted xl:inline">
               {dag.tasks.length} tasks · {dag.total_runs} {dag.total_runs === 1 ? 'run' : 'runs'}
             </span>
+            {parentFlows.length > 0 && (
+              <div className="hidden min-w-0 items-center gap-1.5 border-l border-border pl-3 2xl:flex">
+                <span className="shrink-0 font-mono text-[9px] uppercase tracking-[0.08em] text-ink-muted">in</span>
+                {parentFlows.slice(0, 2).map((flow) => (
+                  <Link
+                    key={flow.flow_id}
+                    to={`/ui/flows/${flow.flow_id}`}
+                    className="max-w-28 truncate font-mono text-[10px] text-ink-secondary hover:text-accent"
+                  >
+                    {flow.flow_id}
+                  </Link>
+                ))}
+                {parentFlows.length > 2 && <span className="font-mono text-[10px] text-ink-muted">+{parentFlows.length - 2}</span>}
+              </div>
+            )}
 
             <DAGTabs className="ml-auto hidden h-full min-[900px]:flex" />
 

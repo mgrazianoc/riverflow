@@ -13,8 +13,9 @@ from typing import Set
 from fastapi import WebSocket
 
 from ..core.riverflow import DAGRunHistory
+from ..core.flow import FlowRunHistory
 from ..core.logger import get_logger
-from ..models.converters import run_to_model
+from ..models.converters import flow_run_to_model, run_to_model
 
 
 logger = get_logger(component="RiverFlowWebSocketManager")
@@ -85,6 +86,19 @@ def create_update_callback(manager: ConnectionManager):
         }
 
         # Broadcast to all WebSocket clients
+        asyncio.create_task(manager.broadcast(message))
+
+    return update_callback
+
+
+def create_flow_update_callback(manager: ConnectionManager):
+    """Create a callback that broadcasts typed Flow run updates."""
+    def update_callback(run_history: FlowRunHistory):
+        message = {
+            "type": "flow_update",
+            "timestamp": datetime.now().isoformat(),
+            "data": flow_run_to_model(run_history).model_dump(mode="json"),
+        }
         asyncio.create_task(manager.broadcast(message))
 
     return update_callback

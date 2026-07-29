@@ -10,18 +10,18 @@
 The top-level `riverflow` package is the contract. Keep it thin and stable.
 
 ```python
-from riverflow import DAG, Task, Riverflow, serve, run, get_task_logger
+from riverflow import DAG, Flow, Task, Riverflow, serve, run, get_task_logger
 ```
 
 - `serve(dags, *, host, port, open_browser, log_config, setup_logging)` —
-  the one-liner. Takes a `DAG`, a list of DAGs, a `.py` path, or nothing
-  (if DAGs are already registered on the singleton).
-- `run(dag)` — execute once, synchronously, return `DAGRunHistory`. For
-  scripts and tests.
-- `DAG` / `Task` / `Riverflow` / `get_task_logger` — re-exported from
+  the one-liner. Takes a `DAG` or `Flow`, an iterable, a `.py` path, or
+  nothing (if workflows are already registered on the singleton).
+- `run(dag)` — execute a `DAG` or `Flow` once, synchronously, and return its
+  run history. For scripts and tests.
+- `DAG` / `Flow` / `Task` / `Riverflow` / `get_task_logger` — re-exported from
   `riverflow.core` for ergonomics.
-- CLI: `riverflow serve path/to/dags.py [--host --port --open]` and
-  `riverflow run path/to/dags.py <dag_id>`. Implemented in
+- CLI: `riverflow serve path/to/workflows.py [--host --port --open]` and
+  `riverflow run path/to/workflows.py <workflow_id>`. Implemented in
   [src/riverflow/\_\_main\_\_.py](src/riverflow/__main__.py).
 
 **Non-negotiable:** the Ten-line DAG example in the README must stay a

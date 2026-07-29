@@ -6,6 +6,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from riverflow.core.dag import DAG
+from riverflow.core.flow import Flow
 from riverflow.core.log_store import LogStore
 from riverflow.core.logger import get_task_logger
 from riverflow.core.riverflow import Riverflow
@@ -196,3 +197,80 @@ class TestRunLogsEndpoint:
         resp = await client.get("/api/runs/no_such_run/logs")
         assert resp.status_code == 200
         assert resp.json()["total"] == 0
+
+
+class TestFlowEndpoints:
+    @staticmethod
+    def register_flow(riverflow: Riverflow) -> Flow:
+        with DAG("flow_child") as dag:
+            @dag.task("work")
+            async def work():
+                pass
+        with Flow("api_flow", description="API regression") as flow:
+            flow.add_dag(dag, parameters={"layer": "gold"})
+        riverflow.register_flow(flow)
+        return flow
+
+    async def test_list_detail_trigger_history_and_lineage(
+        self, client: AsyncClient, riverflow: Riverflow
+    ):
+        self.register_flow(riverflow)
+
+        listing = await client.get("/api/flows")
+        detail = await client.get("/api/flows/api_flow")
+        trigger = await client.put(
+            "/api/flows/api_flow/trigger",
+            json={
+                "parameters": {"dataset": "ibge"},
+                "trigger_mode": "backfill",
+                "requested_by": "api-test",
+            },
+        )
+
+        assert listing.status_code == 200
+        assert listing.json()[0]["flow_id"] == "api_flow"
+        assert detail.status_code == 200
+        assert detail.json()["nodes"][0] == {
+            "node_id": "flow_child",
+            "dag_id": "flow_child",
+            "upstream_node_ids": [],
+            "trigger_rule": "all_success",
+            "concurrency": "queue",
+            "parameters": {"layer": "gold"},
+        }
+        assert trigger.status_code == 200
+        flow_run_id = trigger.json()["run_id"]
+        assert trigger.json()["parameters"] == {"dataset": "ibge"}
+        while riverflow.is_flow_running("api_flow"):
+            await asyncio.sleep(0)
+
+        history = await client.get("/api/flow-history?flow_id=api_flow")
+        child_history = await client.get("/api/history?dag_id=flow_child")
+        assert history.status_code == 200
+        assert history.json()[0]["state"] == "success"
+        assert history.json()[0]["dag_run_ids"]["flow_child"]
+        assert child_history.json()[0]["parent_flow_run_id"] == flow_run_id
+        assert child_history.json()[0]["flow_node_id"] == "flow_child"
+
+    async def test_unknown_and_duplicate_flow_trigger_responses(
+        self, client: AsyncClient, riverflow: Riverflow
+    ):
+        response = await client.put("/api/flows/missing/trigger")
+        assert response.status_code == 404
+
+        release = asyncio.Event()
+        with DAG("slow_flow_child") as dag:
+            @dag.task("wait")
+            async def wait():
+                await release.wait()
+        flow = Flow("slow_api_flow")
+        flow.add_dag(dag)
+        riverflow.register_flow(flow)
+
+        first = await client.put("/api/flows/slow_api_flow/trigger")
+        second = await client.put("/api/flows/slow_api_flow/trigger")
+        assert first.status_code == 200
+        assert second.status_code == 409
+        release.set()
+        while riverflow.is_flow_running("slow_api_flow"):
+            await asyncio.sleep(0)

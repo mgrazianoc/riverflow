@@ -80,6 +80,22 @@ Horizontal tab strips must set `overflow-y-hidden` and hide scrollbar chrome.
 Their active border is enough orientation; an overlay scrollbar must never
 float over the header.
 
+### Workflow hierarchy
+
+The product has three operational levels. The UI must name and route them
+consistently:
+
+1. **Flow** — end-to-end orchestration across DAG boundaries. Flows are the
+   primary object on Overview and the first workflow destination in global nav.
+2. **DAG** — a reusable, independently runnable task graph. Call the collection
+   the **DAG library**, not "pipelines"; show which Flows use each DAG.
+3. **Task** — one unit inside a DAG. Tasks belong only inside DAG views and
+   individual DAG runs.
+
+A Flow run links to its child DAG runs. A DAG links back to every Flow that uses
+it. Never flatten Flow and DAG runs into an unlabeled "runs" list: include the
+object type wherever both appear together.
+
 **Numbers tell the story.** When a number is the point of a headline,
 enlarge it and give it a single color:
 
@@ -256,8 +272,12 @@ ui/src/
     useLiveUpdates.ts          # WS → query cache
     useWebSocket.ts            # WS connection mgmt
   pages/
-    Dashboard.tsx              # Overview + ActivityChart
-    DAGList.tsx                # All DAGs table
+    Dashboard.tsx              # Flow-first overview + DAG activity
+    FlowList.tsx               # All Flows and their DAG paths
+    FlowDetail.tsx             # Flow context, overview, and run history
+    FlowGraph.tsx              # Flow → DAG topology
+    FlowRunDetail.tsx          # Flow run → child DAG runs
+    DAGList.tsx                # Reusable DAG library
     DAGDetail.tsx              # Per-DAG overview/history/tasks
     RunDetail.tsx              # Per-run logs + tasks
     Settings.tsx               # System status

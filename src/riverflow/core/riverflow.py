@@ -20,6 +20,8 @@ from pytz import timezone as pytz_timezone
 from .dag import DAG, DAGRunState
 from .logger import get_logger, install_task_stdout_capture
 from .dag_executor import DAGExecutor
+from .flow import Flow, FlowRunHistory, FlowRunState
+from .flow_executor import FlowExecutor
 from .run_context import RunContext
 from .task import TaskState
 from .task_executor import TaskExecutor
@@ -73,6 +75,13 @@ class Riverflow:
         self._active_runs: Dict[str, Dict[str, DAGRunHistory]] = {}
         self._update_callbacks: List[Callable[[DAGRunHistory], None]] = []
         self._run_counter = 0
+        self._flows: Dict[str, Flow] = {}
+        self._flow_locks: Dict[str, asyncio.Lock] = {}
+        self._flow_run_history: List[FlowRunHistory] = []
+        self._current_flow_runs: Dict[str, FlowRunHistory] = {}
+        self._active_flow_runs: Dict[str, Dict[str, FlowRunHistory]] = {}
+        self._flow_update_callbacks: List[Callable[[FlowRunHistory], None]] = []
+        self._flow_run_counter = 0
         self._scheduler = None
         self._scheduler_started = False
         self._log_store = LogStore()
@@ -83,6 +92,7 @@ class Riverflow:
 
         # Rehydrate run history from SQLite
         self._rehydrate_history()
+        self._rehydrate_flow_history()
 
     @classmethod
     def get_instance(cls) -> "Riverflow":
@@ -112,6 +122,29 @@ class Riverflow:
         if dag.schedule and self._scheduler_started:
             self._schedule_dag(dag)
 
+    def register_flow(self, flow: Flow) -> None:
+        """Register a Flow and the DAG definitions referenced by its nodes."""
+        flow._validate()
+        for node in flow.nodes.values():
+            existing = self._dags.get(node.dag.dag_id)
+            if existing is not None and existing is not node.dag:
+                raise ValueError(
+                    f"Flow '{flow.flow_id}' references DAG '{node.dag.dag_id}', "
+                    "but a different DAG object with that ID is already registered. "
+                    "Reuse the registered DAG object or choose a unique dag_id."
+                )
+            if existing is None:
+                self.register_dag(node.dag)
+        if flow.flow_id in self._flows:
+            self.logger.warning(
+                f"Flow '{flow.flow_id}' already registered, updating..."
+            )
+        self._flows[flow.flow_id] = flow
+        self._flow_locks.setdefault(flow.flow_id, asyncio.Lock())
+        if flow.schedule and self._scheduler_started:
+            self._schedule_flow(flow)
+        self.logger.info(f"Flow '{flow.flow_id}' registered with RiverFlow")
+
     def on_update(self, callback: Callable[[DAGRunHistory], None]) -> None:
         """
         Register a callback to receive DAG state updates.
@@ -139,6 +172,21 @@ class Riverflow:
                     callback(run_history)
             except Exception as e:
                 self.logger.error(f"Error in update callback {callback.__name__}: {e}")
+
+    def on_flow_update(self, callback: Callable[[FlowRunHistory], None]) -> None:
+        """Register a callback for Flow run updates."""
+        self._flow_update_callbacks.append(callback)
+
+    def _notify_flow_update(self, run_history: FlowRunHistory) -> None:
+        for callback in self._flow_update_callbacks:
+            try:
+                if asyncio.iscoroutinefunction(callback):
+                    asyncio.create_task(callback(run_history))
+                else:
+                    callback(run_history)
+            except Exception as error:
+                name = getattr(callback, "__name__", repr(callback))
+                self.logger.error(f"Error in Flow update callback {name}: {error}")
 
     async def trigger(
         self,
@@ -249,6 +297,8 @@ class Riverflow:
                 requested_by=run_context.requested_by or requested_by,
                 metadata=merged_metadata,
                 force=run_context.force or force,
+                parent_flow_run_id=run_context.parent_flow_run_id,
+                flow_node_id=run_context.flow_node_id,
             )
 
         try:
@@ -291,6 +341,136 @@ class Riverflow:
         self._run_history.append(run_history)
         self._notify_update(run_history)
         return run_history
+
+    async def trigger_flow(
+        self,
+        flow_id: str,
+        wait: bool = True,
+        force: bool = False,
+        *,
+        parameters: dict[str, Any] | None = None,
+        trigger_source: str = "manual",
+        trigger_mode: str | None = None,
+        requested_by: str | None = None,
+    ) -> FlowRunHistory | None:
+        """Trigger a registered Flow of DAG runs."""
+        flow = self._flows.get(flow_id)
+        if flow is None:
+            raise ValueError(f"Flow '{flow_id}' not registered with RiverFlow")
+        values = dict(parameters or {})
+        try:
+            json.dumps(values)
+        except (TypeError, ValueError, RecursionError) as error:
+            raise ValueError(
+                f"Parameters for Flow '{flow_id}' must be JSON-serializable. "
+                "Use strings, numbers, booleans, null, lists, and string-keyed objects."
+            ) from error
+        if not force and self.is_flow_running(flow_id):
+            self.logger.info(f"Flow '{flow_id}' is already running. Skipping trigger.")
+            return None
+
+        run_history = self._create_flow_run_history(
+            flow_id,
+            parameters=values,
+            trigger_source=trigger_source,
+            trigger_mode=trigger_mode,
+            requested_by=requested_by,
+        )
+        if wait:
+            if force:
+                return await self._execute_flow(flow, run_history)
+            async with self._flow_locks[flow_id]:
+                return await self._execute_flow(flow, run_history)
+        if force:
+            asyncio.create_task(self._execute_flow(flow, run_history))
+        else:
+            asyncio.create_task(self._execute_flow_with_lock(flow, run_history))
+        return run_history
+
+    def _create_flow_run_history(
+        self,
+        flow_id: str,
+        *,
+        parameters: dict[str, Any],
+        trigger_source: str,
+        trigger_mode: str | None,
+        requested_by: str | None,
+    ) -> FlowRunHistory:
+        self._flow_run_counter += 1
+        run_id = (
+            f"{flow_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            f"_{self._flow_run_counter}"
+        )
+        history = FlowRunHistory(
+            flow_id=flow_id,
+            run_id=run_id,
+            state=FlowRunState.RUNNING,
+            start_time=datetime.now(),
+            parameters=parameters,
+            trigger_source=trigger_source,
+            trigger_mode=trigger_mode,
+            requested_by=requested_by,
+        )
+        self._active_flow_runs.setdefault(flow_id, {})[run_id] = history
+        self._current_flow_runs[flow_id] = history
+        self._flow_run_history.append(history)
+        self._notify_flow_update(history)
+        return history
+
+    async def _execute_flow_with_lock(
+        self, flow: Flow, history: FlowRunHistory
+    ) -> FlowRunHistory:
+        async with self._flow_locks[flow.flow_id]:
+            return await self._execute_flow(flow, history)
+
+    async def _execute_flow(
+        self, flow: Flow, history: FlowRunHistory
+    ) -> FlowRunHistory:
+        try:
+            def on_node_state_change(
+                node_id: str,
+                state: TaskState,
+                dag_run_id: str | None,
+                error: str | None,
+            ) -> None:
+                history.node_states[node_id] = state
+                if dag_run_id:
+                    history.dag_run_ids[node_id] = dag_run_id
+                if error:
+                    history.node_errors[node_id] = error
+                self._notify_flow_update(history)
+
+            history.node_states = await FlowExecutor(
+                flow,
+                self,
+                history,
+                on_node_state_change=on_node_state_change,
+            ).run()
+            failed_states = {
+                TaskState.FAILED,
+                TaskState.TIMEOUT,
+                TaskState.UPSTREAM_FAILED,
+            }
+            history.state = (
+                FlowRunState.FAILED
+                if any(state in failed_states for state in history.node_states.values())
+                else FlowRunState.SUCCESS
+            )
+            if history.node_errors:
+                history.error = "; ".join(
+                    f"{node_id}: {error}"
+                    for node_id, error in history.node_errors.items()
+                )
+        except Exception as error:
+            history.state = FlowRunState.FAILED
+            history.error = str(error)
+            self.logger.error(f"Flow '{flow.flow_id}' execution failed: {error}")
+        finally:
+            history.end_time = datetime.now()
+            self._finish_active_flow_run(flow.flow_id, history.run_id)
+            await self._persist_flow_run(history)
+            self._notify_flow_update(history)
+        return history
 
     async def _execute_dag_with_lock(
         self, dag: DAG, run_history: DAGRunHistory
@@ -409,6 +589,39 @@ class Riverflow:
         """
         return self._current_runs.copy()
 
+    def get_flow_history(
+        self, flow_id: str | None = None, limit: int | None = None
+    ) -> List[FlowRunHistory]:
+        """Return Flow run history, most recent first."""
+        values = (
+            [run for run in self._flow_run_history if run.flow_id == flow_id]
+            if flow_id
+            else self._flow_run_history
+        )
+        result = sorted(
+            values, key=lambda run: run.start_time or datetime.min, reverse=True
+        )
+        return result[:limit] if limit else result
+
+    def get_current_flow_runs(self) -> Dict[str, FlowRunHistory]:
+        """Return the most recent active run for every running Flow."""
+        return self._current_flow_runs.copy()
+
+    def is_flow_running(self, flow_id: str) -> bool:
+        return bool(self._active_flow_runs.get(flow_id))
+
+    def _finish_active_flow_run(self, flow_id: str, run_id: str) -> None:
+        active = self._active_flow_runs.get(flow_id)
+        if not active:
+            self._current_flow_runs.pop(flow_id, None)
+            return
+        active.pop(run_id, None)
+        if active:
+            self._current_flow_runs[flow_id] = next(reversed(active.values()))
+        else:
+            self._active_flow_runs.pop(flow_id, None)
+            self._current_flow_runs.pop(flow_id, None)
+
     def is_running(self, dag_id: str) -> bool:
         """
         Check if a DAG is currently running.
@@ -513,6 +726,30 @@ class Riverflow:
         self.logger.info(f"Cleared {cleared} history record(s)")
         return cleared
 
+    def clear_flow_history(self, flow_id: str | None = None) -> int:
+        """Clear Flow history once the selected Flows are idle."""
+        if flow_id and self.is_flow_running(flow_id):
+            raise RuntimeError(
+                f"Cannot clear history for Flow '{flow_id}' while it is running. "
+                "Wait for the active run to finish and try again."
+            )
+        if flow_id is None and self._active_flow_runs:
+            raise RuntimeError(
+                "Cannot clear all Flow history while Flows are running. "
+                "Wait for active runs to finish and try again."
+            )
+        if flow_id:
+            before = len(self._flow_run_history)
+            self._flow_run_history = [
+                run for run in self._flow_run_history if run.flow_id != flow_id
+            ]
+            cleared = before - len(self._flow_run_history)
+        else:
+            cleared = len(self._flow_run_history)
+            self._flow_run_history.clear()
+        self._log_store.clear_flow_runs(flow_id)
+        return cleared
+
     def get_registered_dags(self) -> List[str]:
         """Get list of all registered DAG IDs"""
         return list(self._dags.keys())
@@ -520,6 +757,12 @@ class Riverflow:
     def get_dag(self, dag_id: str) -> Optional[DAG]:
         """Get DAG definition by ID."""
         return self._dags.get(dag_id)
+
+    def get_registered_flows(self) -> List[str]:
+        return list(self._flows.keys())
+
+    def get_flow(self, flow_id: str) -> Flow | None:
+        return self._flows.get(flow_id)
 
     @property
     def log_store(self) -> LogStore:
@@ -567,6 +810,8 @@ class Riverflow:
                             requested_by=row.get("requested_by"),
                             metadata=row.get("metadata") or {},
                             force=bool(row.get("force", False)),
+                            parent_flow_run_id=row.get("parent_flow_run_id"),
+                            flow_node_id=row.get("flow_node_id"),
                         ),
                     )
                 )
@@ -576,6 +821,43 @@ class Riverflow:
                 )
         except Exception as e:
             self.logger.warning(f"Failed to rehydrate run history: {e}")
+
+    def _rehydrate_flow_history(self) -> None:
+        try:
+            for row in self._log_store.get_flow_runs():
+                states = {}
+                for node_id, value in row.get("node_states", {}).items():
+                    try:
+                        states[node_id] = TaskState(value)
+                    except ValueError:
+                        states[node_id] = TaskState.NONE
+                self._flow_run_history.append(
+                    FlowRunHistory(
+                        flow_id=row["flow_id"],
+                        run_id=row["run_id"],
+                        state=FlowRunState(row["state"]),
+                        start_time=(
+                            datetime.fromisoformat(row["start_time"])
+                            if row.get("start_time")
+                            else None
+                        ),
+                        end_time=(
+                            datetime.fromisoformat(row["end_time"])
+                            if row.get("end_time")
+                            else None
+                        ),
+                        node_states=states,
+                        dag_run_ids=row.get("dag_run_ids") or {},
+                        node_errors=row.get("node_errors") or {},
+                        error=row.get("error"),
+                        parameters=row.get("parameters") or {},
+                        trigger_source=row.get("trigger_source") or "manual",
+                        trigger_mode=row.get("trigger_mode"),
+                        requested_by=row.get("requested_by"),
+                    )
+                )
+        except Exception as error:
+            self.logger.warning(f"Failed to rehydrate Flow history: {error}")
 
     async def _persist_run(self, run_history: DAGRunHistory) -> None:
         """Save a run record to SQLite (off the event loop)."""
@@ -598,7 +880,30 @@ class Riverflow:
                 trigger_mode=run_history.run_context.trigger_mode,
                 requested_by=run_history.run_context.requested_by,
                 force=run_history.run_context.force,
+                parent_flow_run_id=run_history.run_context.parent_flow_run_id,
+                flow_node_id=run_history.run_context.flow_node_id,
             )
+
+    async def _persist_flow_run(self, run_history: FlowRunHistory) -> None:
+        await asyncio.to_thread(
+            self._log_store.save_flow_run,
+            run_id=run_history.run_id,
+            flow_id=run_history.flow_id,
+            state=run_history.state.value,
+            start_time=run_history.start_time,
+            end_time=run_history.end_time,
+            node_states={
+                node_id: state.value
+                for node_id, state in run_history.node_states.items()
+            },
+            dag_run_ids=run_history.dag_run_ids,
+            node_errors=run_history.node_errors,
+            error=run_history.error,
+            parameters=run_history.parameters,
+            trigger_source=run_history.trigger_source,
+            trigger_mode=run_history.trigger_mode,
+            requested_by=run_history.requested_by,
+        )
 
     def get_task_logs(
         self, run_id: str, task_id: Optional[str] = None
@@ -735,6 +1040,7 @@ class Riverflow:
         return (
             f"RiverFlow("
             f"dags={len(self._dags)}, "
+            f"flows={len(self._flows)}, "
             f"running={len(self._current_runs)}, "
             f"history={len(self._run_history)}, "
             f"scheduler={'active' if self._scheduler_started else 'inactive'})"
@@ -774,6 +1080,9 @@ class Riverflow:
         for dag in self._dags.values():
             if dag.schedule:
                 self._schedule_dag(dag)
+        for flow in self._flows.values():
+            if flow.schedule:
+                self._schedule_flow(flow)
 
         self._scheduler.start()
         self._scheduler_started = True
@@ -819,6 +1128,34 @@ class Riverflow:
             )
         except Exception as e:
             self.logger.error(f"Error in scheduled trigger for DAG '{dag_id}': {e}")
+
+    def _schedule_flow(self, flow: Flow) -> None:
+        if not self._scheduler:
+            return
+        job_id = f"flow:{flow.flow_id}"
+        trigger = self._create_trigger(flow.schedule, flow.timezone)
+        if trigger:
+            self._scheduler.add_job(
+                func=self._scheduled_flow_trigger,
+                args=[flow.flow_id],
+                trigger=trigger,
+                id=job_id,
+                name=f"Flow: {flow.flow_id}",
+                replace_existing=True,
+            )
+
+    async def _scheduled_flow_trigger(self, flow_id: str) -> None:
+        try:
+            await self.trigger_flow(
+                flow_id,
+                wait=False,
+                trigger_source="schedule",
+                trigger_mode="scheduled",
+            )
+        except Exception as error:
+            self.logger.error(
+                f"Error in scheduled trigger for Flow '{flow_id}': {error}"
+            )
 
     def _create_trigger(self, schedule, tz: str):
         """Create APScheduler trigger from schedule definition"""
@@ -884,6 +1221,8 @@ class Riverflow:
 
         scheduled_dags = []
         for job in self._scheduler.get_jobs():
+            if job.id.startswith("flow:"):
+                continue
             dag_id = job.id
             dag = self._dags.get(dag_id)
 
@@ -897,3 +1236,23 @@ class Riverflow:
             )
 
         return scheduled_dags
+
+    def get_scheduled_flows(self) -> List[Dict]:
+        """Get information about all scheduled Flows."""
+        if not self._scheduler_started or not self._scheduler:
+            return []
+        result = []
+        for job in self._scheduler.get_jobs():
+            if not job.id.startswith("flow:"):
+                continue
+            flow_id = job.id.removeprefix("flow:")
+            flow = self._flows.get(flow_id)
+            result.append(
+                {
+                    "flow_id": flow_id,
+                    "schedule": flow.schedule if flow else None,
+                    "next_run": job.next_run_time,
+                    "job_name": job.name,
+                }
+            )
+        return result

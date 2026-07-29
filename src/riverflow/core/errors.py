@@ -104,6 +104,53 @@ class UnknownUpstreamTaskError(DAGValidationError):
         )
 
 
+class FlowValidationError(RiverflowException):
+    """Base exception for Flow validation errors."""
+
+
+class FlowCycleDetectedError(FlowValidationError):
+    def __init__(self, flow_id: str, cycle_path: Optional[List[str]] = None):
+        path = " -> ".join(cycle_path or []) or "<unknown path>"
+        super().__init__(
+            f"Cycle detected in Flow '{flow_id}': {path}. "
+            "A Flow must be acyclic — remove or reverse one of the DAG-node "
+            "dependencies along this path."
+        )
+
+
+class EmptyFlowError(FlowValidationError):
+    def __init__(self, flow_id: str):
+        super().__init__(
+            f"Flow '{flow_id}' has no DAG nodes. Add at least one DAG with "
+            f"`{flow_id}.add_dag(...)` before the `with Flow(...)` block exits."
+        )
+
+
+class DuplicateFlowNodeError(FlowValidationError):
+    def __init__(self, flow_id: str, node_id: str):
+        super().__init__(
+            f"Flow node '{node_id}' is registered twice in Flow '{flow_id}'. "
+            "Each node_id within a Flow must be unique."
+        )
+
+
+class UnknownUpstreamFlowNodeError(FlowValidationError):
+    def __init__(self, flow_id: str, node_id: str, missing_upstream: str):
+        super().__init__(
+            f"Flow node '{node_id}' in Flow '{flow_id}' depends on node "
+            f"'{missing_upstream}', but that node is not registered in this Flow. "
+            "Add the DAG through `flow.add_dag(...)` or remove the dependency."
+        )
+
+
+class FlowNodeBusyError(RiverflowException):
+    def __init__(self, flow_id: str, node_id: str, dag_id: str):
+        super().__init__(
+            f"Flow node '{node_id}' in Flow '{flow_id}' could not start because "
+            f"DAG '{dag_id}' is already running and its concurrency policy is 'reject'."
+        )
+
+
 # === TASK EXECUTION ===============================================
 
 

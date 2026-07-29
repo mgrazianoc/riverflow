@@ -23,12 +23,15 @@ from ..core.riverflow import Riverflow, get_logger, DAGRunHistory
 from ..models import (
     APIInfoModel,
     ClearHistoryModel,
+    ClearFlowHistoryModel,
     DAGGraphModel,
     DAGModel,
     DAGRunModel,
     DAGSummaryModel,
     HostMetricsModel,
     HostSamplePoint,
+    FlowModel,
+    FlowRunModel,
     RunTimingModel,
     StatusModel,
     TaskLogsModel,
@@ -38,12 +41,18 @@ from ..models.converters import (
     dag_to_graph,
     dag_to_model,
     dag_to_summary,
+    flow_run_to_model,
+    flow_to_model,
     logs_to_model,
     run_to_model,
 )
 from .graph_layout import layout_dag_graph
 from .host_metrics import HostMetricsCollector
-from .ws import ConnectionManager, create_update_callback
+from .ws import (
+    ConnectionManager,
+    create_flow_update_callback,
+    create_update_callback,
+)
 
 
 logger = get_logger(component="RiverFlowAPI")
@@ -51,6 +60,14 @@ logger = get_logger(component="RiverFlowAPI")
 
 class TriggerRunRequest(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict)
+    trigger_source: Optional[str] = None
+    trigger_mode: Optional[str] = None
+    requested_by: Optional[str] = None
+    force: bool = False
+
+
+class TriggerFlowRequest(BaseModel):
+    parameters: Dict[str, Any] = Field(default_factory=dict)
     trigger_source: Optional[str] = None
     trigger_mode: Optional[str] = None
     requested_by: Optional[str] = None
@@ -98,6 +115,9 @@ class RiverFlowAPI:
                 "status": "/api/status",
                 "history": "/api/history",
                 "trigger": "/api/dags/{dag_id}/trigger",
+                "flows": "/api/flows",
+                "flow_history": "/api/flow-history",
+                "trigger_flow": "/api/flows/{flow_id}/trigger",
             },
         )
 
@@ -109,6 +129,9 @@ class RiverFlowAPI:
             running_dags=list(self.riverflow.get_current_runs().keys()),
             total_history=len(self.riverflow.get_history()),
             active_connections=len(self.manager.active_connections),
+            registered_flows=self.riverflow.get_registered_flows(),
+            running_flows=list(self.riverflow.get_current_flow_runs()),
+            total_flow_history=len(self.riverflow.get_flow_history()),
         )
 
     async def get_dags(self) -> list[DAGSummaryModel]:
@@ -144,6 +167,82 @@ class RiverFlowAPI:
         for info in self.riverflow.get_scheduled_dags():
             sched_lookup[info["dag_id"]] = info.get("next_run")
         return dag_to_model(dag, is_running, stats, next_run=sched_lookup.get(dag_id))
+
+    async def get_flows(self) -> list[FlowModel]:
+        schedules = {
+            value["flow_id"]: value.get("next_run")
+            for value in self.riverflow.get_scheduled_flows()
+        }
+        return [
+            flow_to_model(
+                flow,
+                self.riverflow.is_flow_running(flow_id),
+                next_run=schedules.get(flow_id),
+            )
+            for flow_id in self.riverflow.get_registered_flows()
+            if (flow := self.riverflow.get_flow(flow_id)) is not None
+        ]
+
+    async def get_flow(self, flow_id: str) -> FlowModel:
+        flow = self.riverflow.get_flow(flow_id)
+        if flow is None:
+            raise HTTPException(status_code=404, detail=f"Unknown Flow: {flow_id}")
+        next_run = next(
+            (
+                value.get("next_run")
+                for value in self.riverflow.get_scheduled_flows()
+                if value["flow_id"] == flow_id
+            ),
+            None,
+        )
+        return flow_to_model(
+            flow, self.riverflow.is_flow_running(flow_id), next_run=next_run
+        )
+
+    async def get_flow_history(
+        self, limit: int = 100, flow_id: Optional[str] = None
+    ) -> list[FlowRunModel]:
+        return [
+            flow_run_to_model(run)
+            for run in self.riverflow.get_flow_history(flow_id=flow_id, limit=limit)
+        ]
+
+    async def trigger_flow(
+        self,
+        flow_id: str,
+        payload: Optional[TriggerFlowRequest] = None,
+    ) -> FlowRunModel:
+        payload = payload or TriggerFlowRequest()
+        try:
+            result = await self.riverflow.trigger_flow(
+                flow_id,
+                wait=False,
+                force=payload.force,
+                parameters=payload.parameters,
+                trigger_source=payload.trigger_source or "api",
+                trigger_mode=payload.trigger_mode,
+                requested_by=payload.requested_by,
+            )
+            if result is None:
+                raise HTTPException(
+                    status_code=409, detail=f"Flow '{flow_id}' is already running"
+                )
+            return flow_run_to_model(result)
+        except HTTPException:
+            raise
+        except ValueError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    async def clear_flow_history(
+        self, flow_id: str
+    ) -> ClearFlowHistoryModel:
+        if self.riverflow.get_flow(flow_id) is None:
+            raise HTTPException(status_code=404, detail=f"Unknown Flow: {flow_id}")
+        try:
+            cleared = self.riverflow.clear_flow_history(flow_id)
+        except RuntimeError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        return ClearFlowHistoryModel(flow_id=flow_id, cleared=cleared)
 
     async def get_dag_graph(self, dag_id: str) -> DAGGraphModel:
         """Get DAG graph topology and latest task states for UI rendering."""
@@ -454,6 +553,7 @@ def create_riverflow_api(riverflow: Optional[Riverflow] = None) -> FastAPI:
 
     # Register update callback with RiverFlow
     riverflow.on_update(create_update_callback(manager))
+    riverflow.on_flow_update(create_flow_update_callback(manager))
 
     # Create API handler
     api = RiverFlowAPI(riverflow, manager)
@@ -492,9 +592,14 @@ def create_riverflow_api(riverflow: Optional[Riverflow] = None) -> FastAPI:
     app.get("/api/dags/{dag_id}")(api.get_dag)
     app.get("/api/dags/{dag_id}/graph")(api.get_dag_graph)
     app.get("/api/history")(api.get_history)
+    app.get("/api/flows")(api.get_flows)
+    app.get("/api/flows/{flow_id}")(api.get_flow)
+    app.get("/api/flow-history")(api.get_flow_history)
     app.put("/api/dags/{dag_id}/trigger")(api.trigger_dag)
+    app.put("/api/flows/{flow_id}/trigger")(api.trigger_flow)
     app.put("/api/dags/{dag_id}/tasks/{task_id}/trigger")(api.trigger_task)
     app.delete("/api/dags/{dag_id}/history")(api.clear_dag_history)
+    app.delete("/api/flows/{flow_id}/history")(api.clear_flow_history)
     app.get("/api/runs/{run_id}/logs")(api.get_run_logs)
     app.get("/api/runs/{run_id}/timing")(api.get_run_timing)
     app.get("/api/host/metrics")(api.get_host_metrics)

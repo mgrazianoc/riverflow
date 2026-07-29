@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import type { DAGRun } from '../types'
+import type { DAGRun, FlowRun } from '../types'
 
 type WSMessage =
   | { type: 'connected'; data: { registered_dags: string[] } }
   | { type: 'dag_update'; data: DAGRun }
+  | { type: 'flow_update'; data: FlowRun }
   | { type: 'history'; data: { runs: DAGRun[] } }
   | { type: 'current_runs'; data: { running_dags: DAGRun[] } }
   | { type: 'pong' }

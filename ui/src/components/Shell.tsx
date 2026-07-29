@@ -7,6 +7,7 @@ import { cn } from '../lib/utils'
 
 const navItems = [
   { to: '/ui', label: 'Overview', end: true },
+  { to: '/ui/flows', label: 'Flows', end: false },
   { to: '/ui/dags', label: 'DAGs', end: false },
   { to: '/ui/host', label: 'Host', end: false },
   { to: '/ui/config', label: 'System', end: true },
@@ -21,8 +22,9 @@ export function Shell() {
   const navigate = useNavigate()
   const isMac = typeof navigator !== 'undefined' && navigator.platform.toUpperCase().includes('MAC')
 
-  // Global Vim-style nav: g d, g l, g h, g s.
+  // Global Vim-style nav.
   useSequenceShortcut('g', 'd', () => navigate('/ui'))
+  useSequenceShortcut('g', 'f', () => navigate('/ui/flows'))
   useSequenceShortcut('g', 'l', () => navigate('/ui/dags'))
   useSequenceShortcut('g', 'h', () => navigate('/ui/host'))
   useSequenceShortcut('g', 's', () => navigate('/ui/config'))

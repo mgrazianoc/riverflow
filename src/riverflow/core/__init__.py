@@ -27,6 +27,7 @@ from . import run_context
 
 # Expose main classes for convenient importing
 from .dag import DAG
+from .flow import ConcurrencyPolicy, Flow, FlowNode, FlowRunHistory, FlowRunState
 from .task import Task
 from .riverflow import Riverflow
 from .logger import get_logger, get_task_logger
@@ -46,6 +47,11 @@ __all__ = [
     "run_context",
     # Classes
     "DAG",
+    "Flow",
+    "FlowNode",
+    "FlowRunHistory",
+    "FlowRunState",
+    "ConcurrencyPolicy",
     "Task",
     "Riverflow",
     "RunContext",

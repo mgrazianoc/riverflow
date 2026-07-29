@@ -10,6 +10,51 @@ export type TaskState =
   | 'timeout'
 
 export type DAGRunState = 'idle' | 'scheduled' | 'running' | 'success' | 'failed'
+export type FlowRunState = 'running' | 'success' | 'failed'
+
+export interface FlowNode {
+  node_id: string
+  dag_id: string
+  upstream_node_ids: string[]
+  trigger_rule: string
+  concurrency: string
+  parameters: Record<string, unknown>
+}
+
+export interface Flow {
+  flow_id: string
+  description: string | null
+  timezone: string
+  schedule_display: string | null
+  next_run: string | null
+  is_running: boolean
+  nodes: FlowNode[]
+}
+
+export interface FlowRun {
+  flow_id: string
+  run_id: string
+  state: FlowRunState
+  start_time: string | null
+  end_time: string | null
+  duration_seconds: number | null
+  node_states: Record<string, TaskState>
+  dag_run_ids: Record<string, string>
+  node_errors: Record<string, string>
+  error: string | null
+  parameters: Record<string, unknown>
+  trigger_source: string | null
+  trigger_mode: string | null
+  requested_by: string | null
+}
+
+export interface TriggerFlowRequest {
+  parameters?: Record<string, unknown>
+  trigger_source?: string | null
+  trigger_mode?: string | null
+  requested_by?: string | null
+  force?: boolean
+}
 
 export interface DAGSummary {
   dag_id: string
@@ -119,6 +164,9 @@ export interface Status {
   running_dags: string[]
   total_history: number
   active_connections: number
+  registered_flows: string[]
+  running_flows: string[]
+  total_flow_history: number
 }
 
 export interface TaskTimingEntry {

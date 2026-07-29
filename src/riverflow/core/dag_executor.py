@@ -11,6 +11,7 @@ from .errors import (
 from .logger import get_logger
 from .run_context import RunContext
 from .task import Task, TaskInstance, TaskState
+from .trigger_rules import TERMINAL_STATES, should_run
 
 
 class DAGExecutor:
@@ -50,88 +51,11 @@ class DAGExecutor:
         states = [
             upstream_states.get(t.task_id, TaskState.NONE) for t in task.upstream_tasks
         ]
-
-        rule = task.trigger_rule
-
-        if rule.value == "all_success":
-            return all(s == TaskState.SUCCESS for s in states)
-
-        elif rule.value == "all_failed":
-            return all(s == TaskState.FAILED for s in states)
-
-        elif rule.value == "all_done":
-            done_states = {
-                TaskState.SUCCESS,
-                TaskState.FAILED,
-                TaskState.SKIPPED,
-                TaskState.UPSTREAM_FAILED,
-                TaskState.TIMEOUT,
-            }
-            return all(s in done_states for s in states)
-
-        elif rule.value == "all_done_min_one_success":
-            done_states = {
-                TaskState.SUCCESS,
-                TaskState.FAILED,
-                TaskState.SKIPPED,
-                TaskState.UPSTREAM_FAILED,
-                TaskState.TIMEOUT,
-            }
-            # All non-skipped tasks are done and at least one succeeded
-            non_skipped_states = [s for s in states if s != TaskState.SKIPPED]
-            return (
-                all(s in done_states for s in states)
-                and len(non_skipped_states) > 0
-                and all(s in done_states for s in non_skipped_states)
-                and any(s == TaskState.SUCCESS for s in states)
-            )
-
-        elif rule.value == "all_skipped":
-            return all(s == TaskState.SKIPPED for s in states)
-
-        elif rule.value == "one_success":
-            return any(s == TaskState.SUCCESS for s in states)
-
-        elif rule.value == "one_failed":
-            return any(s == TaskState.FAILED for s in states)
-
-        elif rule.value == "one_done":
-            done_states = {
-                TaskState.SUCCESS,
-                TaskState.FAILED,
-                TaskState.UPSTREAM_FAILED,
-                TaskState.TIMEOUT,
-            }
-            return any(s in done_states for s in states)
-
-        elif rule.value == "none_failed":
-            return not any(
-                s in {TaskState.FAILED, TaskState.UPSTREAM_FAILED} for s in states
-            )
-
-        elif rule.value == "none_failed_min_one_success":
-            # No upstream tasks failed and at least one succeeded
-            return not any(
-                s in {TaskState.FAILED, TaskState.UPSTREAM_FAILED} for s in states
-            ) and any(s == TaskState.SUCCESS for s in states)
-
-        elif rule.value == "none_skipped":
-            return not any(s == TaskState.SKIPPED for s in states)
-
-        elif rule.value == "always":
-            return True
-
-        return False
+        return should_run(task.trigger_rule, states)
 
     @staticmethod
     def _is_terminal(state: TaskState) -> bool:
-        return state in {
-            TaskState.SUCCESS,
-            TaskState.FAILED,
-            TaskState.SKIPPED,
-            TaskState.UPSTREAM_FAILED,
-            TaskState.TIMEOUT,
-        }
+        return state in TERMINAL_STATES
 
     def _upstreams_are_terminal(
         self, task: Task, states: dict[str, TaskState]

@@ -18,6 +18,13 @@ from .status import (
     DashboardModel,
 )
 from .host import HostMetricsModel, HostSamplePoint
+from .flow import (
+    ClearFlowHistoryModel,
+    FlowModel,
+    FlowNodeModel,
+    FlowRunModel,
+    FlowRunStateEnum,
+)
 
 __all__ = [
     # DAG
@@ -34,6 +41,11 @@ __all__ = [
     "DAGRunModel",
     "DAGRunStateEnum",
     "TaskRunModel",
+    "FlowModel",
+    "FlowNodeModel",
+    "FlowRunModel",
+    "FlowRunStateEnum",
+    "ClearFlowHistoryModel",
     # Log
     "LogEntryModel",
     "TaskLogsModel",

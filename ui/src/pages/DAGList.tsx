@@ -22,6 +22,7 @@ const DEFAULT_SORT: SortState = { key: 'dag_id', dir: 'asc' }
 
 export function DAGList() {
   const dagsQ = useQuery({ queryKey: ['dags'], queryFn: api.getDags, refetchInterval: 5000 })
+  const flowsQ = useQuery({ queryKey: ['flows'], queryFn: api.getFlows, refetchInterval: 5000 })
   const runsQ = useQuery({ queryKey: ['history'], queryFn: () => api.getHistory(500), refetchInterval: 5000 })
 
   // Sort is a personal preference → localStorage.
@@ -44,13 +45,27 @@ export function DAGList() {
     }
     return m
   }, [runsQ.data])
+  const flowsByDag = useMemo(() => {
+    const result = new Map<string, string[]>()
+    for (const flow of flowsQ.data ?? []) {
+      for (const node of flow.nodes) {
+        if (!result.get(node.dag_id)?.includes(flow.flow_id)) {
+          result.set(node.dag_id, [...(result.get(node.dag_id) ?? []), flow.flow_id])
+        }
+      }
+    }
+    return result
+  }, [flowsQ.data])
 
   const rows = useMemo(() => {
     let r = dagsQ.data ?? []
     if (onlyRunning) r = r.filter((d) => d.is_running)
     if (filter.trim()) {
       const q = filter.toLowerCase()
-      r = r.filter((d) => d.dag_id.toLowerCase().includes(q))
+      r = r.filter((d) =>
+        d.dag_id.toLowerCase().includes(q)
+        || (flowsByDag.get(d.dag_id) ?? []).some((flowId) => flowId.toLowerCase().includes(q)),
+      )
     }
     return [...r].sort((a, b) => {
       const av = a[sort.key]
@@ -62,7 +77,7 @@ export function DAGList() {
       const bn = Number(bv) || 0
       return sort.dir === 'asc' ? an - bn : bn - an
     })
-  }, [dagsQ.data, filter, onlyRunning, sort])
+  }, [dagsQ.data, filter, flowsByDag, onlyRunning, sort])
 
   const toggleSort = (key: SortKey) =>
     setSort((prev) => (prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }))
@@ -81,7 +96,7 @@ export function DAGList() {
       {/* Masthead label */}
       <div className="mb-6 flex items-center justify-between">
         <span className="font-mono text-[11px] uppercase tracking-[0.1em] text-ink-muted">
-          Pipelines
+          Reusable work
         </span>
         <span className="font-mono text-[11px] uppercase tracking-[0.1em] text-ink-muted">
           {dagsQ.data ? `${rows.length} / ${dagsQ.data.length}` : ''}
@@ -91,8 +106,11 @@ export function DAGList() {
 
       {/* Headline */}
       <h1 className="mt-8 font-display text-[32px] font-normal leading-[1.1] tracking-[-0.015em] text-ink">
-        All DAGs
+        DAG library
       </h1>
+      <p className="mt-2 max-w-2xl text-[14px] leading-5 text-ink-secondary">
+        Task graphs that run independently or as nodes inside a Flow.
+      </p>
 
       {/* Inline controls */}
       <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-border pb-3">
@@ -101,7 +119,7 @@ export function DAGList() {
           type="text"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          placeholder="Filter by name…  press / to focus"
+          placeholder="Filter by DAG or parent Flow…  press / to focus"
           aria-label="Filter DAGs by name"
           className="min-w-0 flex-1 border-0 bg-transparent py-1 text-[14px] text-ink placeholder:text-ink-muted focus:outline-none sm:w-72 sm:flex-none"
         />
@@ -126,10 +144,11 @@ export function DAGList() {
         <p className="py-20 text-sm text-ink-muted">No matches for “{filter}”.</p>
       ) : (
         <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-        <table className="mt-1 min-w-215 w-full">
+        <table className="mt-1 min-w-240 w-full">
           <colgroup>
             <col />
             <col className="w-32.5" />
+            <col className="w-42.5" />
             <col className="w-35" />
             <col className="w-30" />
             <col className="w-27.5" />
@@ -139,6 +158,7 @@ export function DAGList() {
             <tr className="border-b border-border text-left font-mono text-[10px] font-medium uppercase tracking-[0.1em] text-ink-muted">
               <SortTh label="Name" k="dag_id" sort={sort} onClick={toggleSort} />
               <th className="py-2.5">Last 20</th>
+              <th className="py-2.5">Used by</th>
               <th className="py-2.5">Duration</th>
               <SortTh label="Runs" k="total_runs" sort={sort} onClick={toggleSort} align="right" />
               <SortTh label="Avg" k="avg_duration_seconds" sort={sort} onClick={toggleSort} align="right" />
@@ -147,7 +167,12 @@ export function DAGList() {
           </thead>
           <tbody className="divide-y divide-border/60">
             {rows.map((d) => (
-              <Row key={d.dag_id} dag={d} runs={runsByDag.get(d.dag_id) ?? []} />
+              <Row
+                key={d.dag_id}
+                dag={d}
+                runs={runsByDag.get(d.dag_id) ?? []}
+                flowIds={flowsByDag.get(d.dag_id) ?? []}
+              />
             ))}
           </tbody>
         </table>
@@ -178,7 +203,7 @@ function SortTh({
   )
 }
 
-function Row({ dag, runs }: { dag: DAGSummary; runs: DAGRun[] }) {
+function Row({ dag, runs, flowIds }: { dag: DAGSummary; runs: DAGRun[]; flowIds: string[] }) {
   const prefetch = usePrefetchDag(dag.dag_id)
   return (
     <tr
@@ -199,6 +224,25 @@ function Row({ dag, runs }: { dag: DAGSummary; runs: DAGRun[] }) {
         </Link>
       </td>
       <td className="py-3.5"><RunStrip runs={runs} max={20} /></td>
+      <td className="py-3.5">
+        {flowIds.length > 0 ? (
+          <div className="flex min-w-0 gap-1.5">
+            {flowIds.slice(0, 2).map((flowId) => (
+              <Link
+                key={flowId}
+                to={`/ui/flows/${flowId}`}
+                className="max-w-28 truncate font-mono text-[10px] text-ink-secondary hover:text-accent"
+                title={`Open Flow ${flowId}`}
+              >
+                {flowId}
+              </Link>
+            ))}
+            {flowIds.length > 2 && <span className="font-mono text-[10px] text-ink-muted">+{flowIds.length - 2}</span>}
+          </div>
+        ) : (
+          <span className="font-mono text-[10px] uppercase tracking-[0.06em] text-ink-muted">Standalone</span>
+        )}
+      </td>
       <td className="py-3.5"><Sparkline runs={runs} max={20} /></td>
       <td className="py-3.5 text-right font-mono text-[12px] tabular-nums">
         <span className="text-ink">{dag.total_runs}</span>
@@ -239,11 +283,11 @@ function EmptyDagsEditorial() {
         Nothing to show
       </p>
       <h2 className="mt-3 font-display text-[28px] leading-tight text-ink">
-        No pipelines yet.
+        No DAGs yet.
       </h2>
       <p className="mt-4 max-w-xl text-[14px] leading-relaxed text-ink-secondary">
-        Riverflow is idle. Define a DAG in Python, register it with the scheduler, and it will
-        appear here — scheduled or ready to trigger manually.
+        Define a DAG in Python and it will appear here—ready to run independently
+        or to reuse as a node in a Flow.
       </p>
 
       <pre className="mt-8 overflow-x-auto border-l-2 border-border bg-bg-raised px-5 py-4 font-mono text-[13px] leading-relaxed text-ink">

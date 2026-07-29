@@ -8,11 +8,13 @@ import { useToast } from '../hooks/useToast'
 
 type Item =
   | { kind: 'nav'; id: string; label: string; hint: string; to: string }
+  | { kind: 'flow'; id: string; label: string; hint: string; to: string }
   | { kind: 'dag'; id: string; label: string; hint: string; to: string }
   | { kind: 'action'; id: string; label: string; hint: string; run: () => Promise<void> | void }
 
 const NAV_ITEMS: Item[] = [
   { kind: 'nav', id: 'nav:dashboard', label: 'Overview', hint: 'g d', to: '/ui' },
+  { kind: 'nav', id: 'nav:flows', label: 'Flows', hint: 'g f', to: '/ui/flows' },
   { kind: 'nav', id: 'nav:dags', label: 'DAGs', hint: 'g l', to: '/ui/dags' },
   { kind: 'nav', id: 'nav:host', label: 'Host', hint: 'g h', to: '/ui/host' },
   { kind: 'nav', id: 'nav:system', label: 'System', hint: 'g s', to: '/ui/config' },
@@ -30,6 +32,11 @@ export function CommandPalette() {
   const { data: dags = [] } = useQuery({
     queryKey: ['dags'],
     queryFn: api.getDags,
+    staleTime: 30_000,
+  })
+  const { data: flows = [] } = useQuery({
+    queryKey: ['flows'],
+    queryFn: api.getFlows,
     staleTime: 30_000,
   })
 
@@ -52,6 +59,27 @@ export function CommandPalette() {
   }, [open])
 
   const items = useMemo<Item[]>(() => {
+    const flowItems: Item[] = flows.map((flow) => ({
+      kind: 'flow',
+      id: `flow:${flow.flow_id}`,
+      label: flow.flow_id,
+      hint: flow.is_running ? 'running' : `${flow.nodes.length} DAGs`,
+      to: `/ui/flows/${flow.flow_id}`,
+    }))
+    const triggerFlowItems: Item[] = flows.map((flow) => ({
+      kind: 'action',
+      id: `trigger-flow:${flow.flow_id}`,
+      label: `Trigger flow ${flow.flow_id}`,
+      hint: 'run orchestration',
+      run: async () => {
+        try {
+          const run = await api.triggerFlow(flow.flow_id)
+          toast.push(`Triggered flow ${run.flow_id}`, 'success')
+        } catch (err) {
+          toast.push(errorMessage(err), 'error')
+        }
+      },
+    }))
     const dagItems: Item[] = dags.map((d) => ({
       kind: 'dag',
       id: `dag:${d.dag_id}`,
@@ -73,8 +101,8 @@ export function CommandPalette() {
         }
       },
     }))
-    return [...NAV_ITEMS, ...dagItems, ...triggerItems]
-  }, [dags, toast])
+    return [...NAV_ITEMS, ...flowItems, ...dagItems, ...triggerFlowItems, ...triggerItems]
+  }, [dags, flows, toast])
 
   const filtered = useMemo(() => {
     if (!q.trim()) return items
@@ -100,7 +128,7 @@ export function CommandPalette() {
 
   const choose = useCallback((it: Item) => {
     close()
-    if (it.kind === 'nav' || it.kind === 'dag') navigate(it.to)
+    if (it.kind === 'nav' || it.kind === 'flow' || it.kind === 'dag') navigate(it.to)
     else void it.run()
   }, [close, navigate])
 
@@ -122,7 +150,7 @@ export function CommandPalette() {
           ref={inputRef}
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Jump to DAG, page, or action…"
+          placeholder="Jump to Flow, DAG, page, or action…"
           role="combobox"
           aria-expanded="true"
           aria-controls="command-results"
@@ -160,7 +188,7 @@ export function CommandPalette() {
                 )}
               >
                 <span className="w-14 shrink-0 font-mono text-[10px] font-medium uppercase tracking-wider text-ink-muted">
-                  {it.kind === 'action' ? 'Run' : it.kind === 'dag' ? 'DAG' : 'Go to'}
+                  {it.kind === 'action' ? 'Run' : it.kind === 'flow' ? 'Flow' : it.kind === 'dag' ? 'DAG' : 'Go to'}
                 </span>
                 <span className="flex-1 truncate">{it.label}</span>
                 <span className="shrink-0 text-[11px] text-ink-muted">{it.hint}</span>

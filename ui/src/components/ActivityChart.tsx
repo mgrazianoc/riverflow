@@ -68,7 +68,7 @@ export function ActivityChart({ runs, days = 14, className }: ActivityChartProps
       <svg
         viewBox={`0 0 ${W} ${H}`}
         width="100%"
-        className="block"
+        className="block h-55 w-full sm:h-auto"
         role="img"
         aria-label="Run activity over time"
         preserveAspectRatio="none"
@@ -184,7 +184,7 @@ export function ActivityChart({ runs, days = 14, className }: ActivityChartProps
         <span>p95 duration</span>
         <LegendSwatch kind="bar" />
         <span>Failures</span>
-        <span className="ml-auto">
+        <span className="w-full pt-1 text-right sm:ml-auto sm:w-auto sm:pt-0">
           {hasData ? `${sum(buckets, (b) => b.total)} runs · ${days} days` : `No activity in ${days} days`}
         </span>
       </figcaption>

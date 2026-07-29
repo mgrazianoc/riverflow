@@ -29,13 +29,22 @@ const stateLabel: Record<string, string> = {
   scheduled: 'Scheduled',
 }
 
-function StateCell({ state, runId }: { state: TaskState | DAGRunState; runId: string }) {
+function StateCell({
+  state,
+  runId,
+  taskId,
+}: {
+  state: TaskState | DAGRunState
+  runId: string
+  taskId?: string
+}) {
   return (
     <Link
       to={`/ui/runs/${runId}`}
-      title={stateLabel[state] ?? state}
+      title={`${taskId ?? 'DAG'} · ${stateLabel[state] ?? state} · ${runId}`}
+      aria-label={`${taskId ?? 'DAG'}: ${stateLabel[state] ?? state} in ${runId}`}
       className={cn(
-        'block h-6 w-6 rounded-md transition-transform hover:scale-125 hover:ring-1 hover:ring-ink-muted/40',
+        'block h-6 w-6 rounded-sm transition-transform hover:scale-115 hover:ring-1 hover:ring-ink-muted/40',
         stateColor[state] ?? 'bg-border/60',
       )}
     />
@@ -65,9 +74,9 @@ export function DAGGrid() {
   const displayRuns = [...runs].reverse()
 
   return (
-    <div className="overflow-auto px-8 py-6">
+    <div className="overflow-auto px-4 py-6 sm:px-6 lg:px-8">
       {/* Legend */}
-      <div className="mb-5 flex flex-wrap items-center gap-4 text-xs text-ink-muted">
+      <div className="mb-5 flex flex-wrap items-center gap-x-4 gap-y-2 font-mono text-[10px] text-ink-muted">
         {['success', 'failed', 'running', 'skipped', 'upstream_failed', 'timeout', 'none'].map((s) => (
           <span key={s} className="flex items-center gap-1.5">
             <span className={cn('inline-block h-3 w-3 rounded-[2px]', stateColor[s])} />
@@ -124,7 +133,7 @@ export function DAGGrid() {
                     const state = r.task_states[tid] ?? 'none'
                     return (
                       <td key={r.run_id} className="p-0">
-                        <StateCell state={state} runId={r.run_id} />
+                        <StateCell state={state} runId={r.run_id} taskId={tid} />
                       </td>
                     )
                   })}

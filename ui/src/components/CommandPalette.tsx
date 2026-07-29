@@ -12,8 +12,9 @@ type Item =
   | { kind: 'action'; id: string; label: string; hint: string; run: () => Promise<void> | void }
 
 const NAV_ITEMS: Item[] = [
-  { kind: 'nav', id: 'nav:dashboard', label: 'Dashboard', hint: 'g d', to: '/ui' },
-  { kind: 'nav', id: 'nav:dags', label: 'DAGs', hint: 'g g', to: '/ui/dags' },
+  { kind: 'nav', id: 'nav:dashboard', label: 'Overview', hint: 'g d', to: '/ui' },
+  { kind: 'nav', id: 'nav:dags', label: 'DAGs', hint: 'g l', to: '/ui/dags' },
+  { kind: 'nav', id: 'nav:host', label: 'Host', hint: 'g h', to: '/ui/host' },
   { kind: 'nav', id: 'nav:system', label: 'System', hint: 'g s', to: '/ui/config' },
 ]
 
@@ -44,7 +45,10 @@ export function CommandPalette() {
   useShortcut('g', () => { /* no-op root; chords handled below */ }, { enabled: !open })
 
   useEffect(() => {
-    if (open) requestAnimationFrame(() => inputRef.current?.focus())
+    if (!open) return
+    const prior = document.activeElement as HTMLElement | null
+    requestAnimationFrame(() => inputRef.current?.focus())
+    return () => prior?.focus()
   }, [open])
 
   const items = useMemo<Item[]>(() => {
@@ -104,13 +108,14 @@ export function CommandPalette() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-ink/20 px-4 pt-[14vh] backdrop-blur-[2px]"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-ink/20 px-4 pt-[14vh]"
       onClick={close}
       role="dialog"
+      aria-modal="true"
       aria-label="Command palette"
     >
       <div
-        className="w-full max-w-xl overflow-hidden rounded-md border border-border-bright bg-bg shadow-xl shadow-ink/15"
+        className="w-full max-w-xl overflow-hidden rounded-md border border-border-bright bg-bg shadow-md shadow-ink/15"
         onClick={(e) => e.stopPropagation()}
       >
         <input
@@ -118,6 +123,10 @@ export function CommandPalette() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Jump to DAG, page, or action…"
+          role="combobox"
+          aria-expanded="true"
+          aria-controls="command-results"
+          aria-activedescendant={filtered[cursor] ? `command-${filtered[cursor].id}` : undefined}
           className="w-full border-b border-border bg-transparent px-4 py-3 text-sm text-ink placeholder:text-ink-muted focus:outline-none"
           onKeyDown={(e) => {
             if (e.key === 'Escape') { e.preventDefault(); close() }
@@ -131,13 +140,17 @@ export function CommandPalette() {
           }}
         />
 
-        <div ref={listRef} className="max-h-[50vh] overflow-y-auto py-1">
+        <div id="command-results" ref={listRef} role="listbox" className="max-h-[55vh] overflow-y-auto py-1">
           {filtered.length === 0 ? (
             <p className="px-4 py-8 text-center text-xs text-ink-muted">No matches</p>
           ) : (
             filtered.map((it, i) => (
               <button
+                type="button"
                 key={it.id}
+                id={`command-${it.id}`}
+                role="option"
+                aria-selected={i === cursor}
                 data-idx={i}
                 onMouseEnter={() => setCursor(i)}
                 onClick={() => choose(it)}
@@ -157,7 +170,7 @@ export function CommandPalette() {
         </div>
 
         <div className="flex items-center justify-between gap-4 border-t border-border bg-bg-raised/60 px-4 py-2 text-[10px] text-ink-muted">
-          <div className="flex items-center gap-3">
+          <div className="hidden items-center gap-3 sm:flex">
             <Key>↑↓</Key><span>navigate</span>
             <Key>↵</Key><span>select</span>
             <Key>esc</Key><span>close</span>

@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
 import { useParams } from 'react-router'
-import { useState, useMemo } from 'react'
+import { useMemo } from 'react'
 import { api } from '../api'
 import { StateBadge } from '../components/StatusBadge'
+import { useUrlState } from '../hooks/useUrlState'
 import { formatDuration, cn } from '../lib/utils'
 import type { TaskState } from '../types'
 
@@ -29,7 +30,12 @@ export function DAGGantt() {
   // Default to latest completed run, fall back to any latest run
   const latestFinished = runs.find((r) => r.state === 'success' || r.state === 'failed')
   const defaultRunId = latestFinished?.run_id ?? runs[0]?.run_id ?? null
-  const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
+  const [selectedRunId, setSelectedRunId] = useUrlState<string | null>(
+    'run',
+    null,
+    (raw) => raw || null,
+    (value) => value,
+  )
   const activeRunId = selectedRunId ?? defaultRunId
 
   const { data: timing } = useQuery({
@@ -57,14 +63,15 @@ export function DAGGantt() {
   }, [timing])
 
   return (
-    <div className="px-8 py-6">
+    <div className="px-4 py-6 sm:px-6 lg:px-8">
       {/* Run selector */}
-      <div className="mb-5 flex items-center gap-3">
-        <label className="text-xs font-medium text-ink-muted">Run</label>
+      <div className="mb-5 flex flex-wrap items-center gap-3">
+        <label htmlFor="gantt-run" className="font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-ink-muted">Run</label>
         <select
+          id="gantt-run"
           value={activeRunId ?? ''}
           onChange={(e) => setSelectedRunId(e.target.value || null)}
-          className="rounded-md border border-border bg-bg-raised px-2.5 py-1.5 text-xs text-ink-secondary focus:border-accent focus:outline-none"
+          className="min-w-0 max-w-full flex-1 rounded-md border border-border bg-bg-raised px-2.5 py-1.5 font-mono text-xs text-ink-secondary focus:border-accent focus:outline-none sm:max-w-md sm:flex-none"
         >
           {runs.map((r) => (
             <option key={r.run_id} value={r.run_id}>
@@ -86,7 +93,8 @@ export function DAGGantt() {
           {runs.length === 0 ? 'No runs recorded yet' : 'No task timing data for this run'}
         </p>
       ) : (
-        <div>
+        <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+          <div className="min-w-180">
           {/* Time axis header */}
           <div className="mb-2 flex items-end" style={{ paddingLeft: '160px' }}>
             <TimeAxis minTs={minTs} maxTs={maxTs} />
@@ -130,6 +138,7 @@ export function DAGGantt() {
                 </div>
               )
             })}
+          </div>
           </div>
         </div>
       )}

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { TriggerRunRequest } from '../types'
 
 type TriggerRunDialogProps = {
@@ -22,6 +22,28 @@ export function TriggerRunDialog({ dagId, open, pending, onClose, onSubmit }: Tr
   const [force, setForce] = useState(false)
   const [metadataText, setMetadataText] = useState('{\n  \n}')
   const [error, setError] = useState<string | null>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const onCloseRef = useRef(onClose)
+
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
+
+  useEffect(() => {
+    if (!open) return
+    const prior = document.activeElement as HTMLElement | null
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !pending) onCloseRef.current()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    requestAnimationFrame(() => {
+      dialogRef.current?.querySelector<HTMLElement>('button, input, textarea')?.focus()
+    })
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      prior?.focus()
+    }
+  }, [open, pending])
 
   if (!open) return null
 
@@ -53,11 +75,19 @@ export function TriggerRunDialog({ dagId, open, pending, onClose, onSubmit }: Tr
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-bg/80">
-      <div className="mx-auto mt-24 w-full max-w-2xl border border-ink bg-bg-raised">
+    <div
+      className="fixed inset-0 z-50 overflow-y-auto bg-bg/80 px-3 py-6 sm:px-4 sm:py-12"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="trigger-run-title"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !pending) onClose()
+      }}
+    >
+      <div ref={dialogRef} className="mx-auto w-full max-w-2xl border border-ink bg-bg-raised">
         <div className="border-b border-border px-5 py-4">
           <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-muted">Trigger run</div>
-          <h2 className="mt-2 font-display text-[28px] font-light leading-[1.05] tracking-[-0.015em] text-ink">
+          <h2 id="trigger-run-title" className="mt-2 font-display text-[28px] font-light leading-[1.05] tracking-[-0.015em] text-ink">
             {dagId}
           </h2>
         </div>
@@ -67,9 +97,10 @@ export function TriggerRunDialog({ dagId, open, pending, onClose, onSubmit }: Tr
             <div className="mb-2 font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-ink-muted">
               Run mode metadata
             </div>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
               {PRESETS.map((preset) => (
                 <button
+                  type="button"
                   key={preset.label}
                   onClick={() => setRunMode(preset.value)}
                   className={[
@@ -86,7 +117,7 @@ export function TriggerRunDialog({ dagId, open, pending, onClose, onSubmit }: Tr
             </div>
           </section>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="block">
               <span className="font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-ink-muted">
                 Trigger mode
@@ -139,6 +170,7 @@ export function TriggerRunDialog({ dagId, open, pending, onClose, onSubmit }: Tr
 
         <div className="flex items-center justify-end gap-3 border-t border-border px-5 py-4">
           <button
+            type="button"
             onClick={onClose}
             disabled={pending}
             className="text-[12px] text-ink-muted transition-colors hover:text-ink disabled:opacity-40"
@@ -146,6 +178,7 @@ export function TriggerRunDialog({ dagId, open, pending, onClose, onSubmit }: Tr
             Cancel
           </button>
           <button
+            type="button"
             onClick={submit}
             disabled={pending}
             className="border border-ink bg-ink px-3 py-1.5 text-[12px] font-medium text-bg transition-colors hover:border-accent hover:bg-accent disabled:opacity-50"

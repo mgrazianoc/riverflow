@@ -49,7 +49,7 @@ export function Dashboard() {
   const loading = dagsQ.isLoading || runsQ.isLoading
 
   return (
-    <div className="mx-auto max-w-7xl px-8 pt-10 pb-14">
+    <div className="mx-auto max-w-7xl px-4 pt-7 pb-12 sm:px-6 sm:pt-10 sm:pb-14 lg:px-8">
       {/* Masthead date — editorial cue */}
       <div className="mb-6 flex items-center justify-between">
         <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-muted">
@@ -64,7 +64,7 @@ export function Dashboard() {
       <div className="border-t border-ink" />
 
       {/* Headline — editorial, data-first, display serif */}
-      <div className="pt-8 pb-10">
+      <div className="pt-7 pb-9 sm:pt-8 sm:pb-10">
         <Headline
           loading={loading}
           dagCount={dags.length}
@@ -111,7 +111,8 @@ export function Dashboard() {
         ) : dags.length === 0 ? (
           <EmptyDags />
         ) : (
-          <table className="w-full">
+          <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+          <table className="min-w-215 w-full">
             <colgroup>
               <col />
               <col className="w-30" />
@@ -136,6 +137,7 @@ export function Dashboard() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </section>
 
@@ -156,7 +158,7 @@ export function Dashboard() {
               <Link
                 key={r.run_id}
                 to={`/ui/runs/${r.run_id}`}
-                className="group flex items-center gap-4 py-2 transition-colors hover:bg-bg-raised/60"
+                className="group flex items-center gap-3 py-2.5 transition-colors hover:bg-bg-raised/60 sm:gap-4 sm:py-2"
               >
                 <StateBadge state={r.state} compact />
                 <span className="min-w-0 flex-1 truncate text-[13px] text-ink group-hover:text-accent">
@@ -165,10 +167,10 @@ export function Dashboard() {
                 <span className="hidden w-32 truncate font-mono text-[11px] text-ink-muted sm:inline">
                   {r.run_id}
                 </span>
-                <span className="w-20 text-right font-mono text-[11px] text-ink-secondary">
+                <span className="hidden w-20 text-right font-mono text-[11px] text-ink-secondary min-[430px]:inline">
                   {r.duration_seconds != null ? formatDuration(r.duration_seconds) : '—'}
                 </span>
-                <RelativeTime iso={r.start_time} className="w-20 text-right font-mono text-[11px] text-ink-muted" />
+                <RelativeTime iso={r.start_time} className="w-20 shrink-0 text-right font-mono text-[11px] text-ink-muted" />
               </Link>
             ))}
           </div>
@@ -248,7 +250,7 @@ function Headline({ loading, dagCount, runningCount, recentFailures, totalLast24
 
   return (
     <div className="space-y-4">
-      <h1 className="font-display text-[42px] font-light leading-[1.05] tracking-[-0.015em]">
+      <h1 className="font-display text-[36px] font-light leading-[1.05] tracking-[-0.015em] sm:text-[42px]">
         {body}
       </h1>
       <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-ink-muted">
@@ -333,14 +335,14 @@ function EmptyDags() {
         Register a DAG from your Python application:
       </p>
       <pre className="mt-4 overflow-x-auto bg-bg-inset p-5 font-mono text-[12px] leading-[1.7] text-ink-secondary">
-{`from riverflow.core import DAG, Riverflow
+{`from riverflow import DAG, serve
 
 with DAG(dag_id="my_pipeline") as dag:
     @dag.task("hello")
     async def hello():
         print("hi")
 
-Riverflow.get_instance().register_dag(dag)`}
+serve(dag)`}
       </pre>
       <p className="mt-3 font-mono text-[11px] text-ink-muted">
         Refresh this page once the server reloads.
@@ -348,4 +350,3 @@ Riverflow.get_instance().register_dag(dag)`}
     </div>
   )
 }
-

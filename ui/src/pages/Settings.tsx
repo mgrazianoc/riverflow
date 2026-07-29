@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { Link } from 'react-router'
 import { api } from '../api'
 
 export function Settings() {
@@ -10,13 +11,13 @@ export function Settings() {
 
   if (!status)
     return (
-      <div className="mx-auto max-w-7xl px-8 pt-10 font-mono text-[11px] text-ink-muted">
+      <div className="mx-auto max-w-7xl px-4 pt-7 font-mono text-[11px] text-ink-muted sm:px-6 sm:pt-10 lg:px-8">
         Loading…
       </div>
     )
 
   return (
-    <div className="mx-auto max-w-7xl px-8 pt-10 pb-20">
+    <div className="mx-auto max-w-7xl px-4 pt-7 pb-16 sm:px-6 sm:pt-10 sm:pb-20 lg:px-8">
       <div className="mb-6 flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.14em] text-ink-muted">
         <span>{new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</span>
         <span>System</span>
@@ -50,12 +51,13 @@ export function Settings() {
           </div>
           <div className="flex flex-wrap gap-1.5">
             {status.registered_dags.map((id) => (
-              <span
+              <Link
                 key={id}
+                to={`/ui/dags/${id}`}
                 className="rounded-sm border border-border bg-bg-raised px-2 py-1 font-mono text-[11px] text-ink-secondary"
               >
                 {id}
-              </span>
+              </Link>
             ))}
           </div>
         </section>
@@ -66,9 +68,9 @@ export function Settings() {
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between px-1 py-3">
+    <div className="flex items-start justify-between gap-6 px-1 py-3">
       <dt className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-muted">{label}</dt>
-      <dd className="font-mono text-[13px] tabular-nums text-ink">{value}</dd>
+      <dd className="text-right font-mono text-[13px] tabular-nums text-ink">{value}</dd>
     </div>
   )
 }

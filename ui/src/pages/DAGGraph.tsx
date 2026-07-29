@@ -60,9 +60,9 @@ function TaskNode({ data }: NodeProps<Node<TaskNodeData>>) {
       <Handle type="target" position={Position.Left} className="w-1.5! h-1.5! bg-border-bright! border-0!" />
       <div
         className={cn(
-          'cursor-pointer rounded-lg border px-4 py-3 min-w-40 transition-all',
-          'hover:shadow-md hover:shadow-black/20',
-          data.selected && 'ring-2 ring-accent ring-offset-1 ring-offset-bg',
+          'min-w-40 cursor-pointer rounded-md border px-4 py-3 transition-all',
+          'hover:border-ink-muted hover:shadow-sm hover:shadow-ink/10',
+          data.selected && 'ring-1 ring-accent ring-offset-1 ring-offset-bg',
           style.border, style.bg,
         )}
       >
@@ -75,10 +75,12 @@ function TaskNode({ data }: NodeProps<Node<TaskNodeData>>) {
             {data.state}
           </span>
           <button
+            type="button"
             onClick={(e) => { e.stopPropagation(); trigger.mutate() }}
             disabled={trigger.isPending || data.state === 'running'}
-            className="rounded p-0.5 text-ink-muted transition-colors hover:text-accent hover:bg-accent-muted disabled:opacity-30"
+            className="rounded-sm p-0.5 text-ink-muted transition-colors hover:bg-accent-muted hover:text-accent disabled:opacity-30"
             title={`Trigger ${data.label}`}
+            aria-label={`Trigger ${data.label}`}
           >
             <Play size={10} />
           </button>
@@ -143,6 +145,7 @@ function FlowCanvas({ graph, dagId }: { graph: DAGGraph; dagId: string }) {
   }, [])
 
   const onPaneClick = useCallback(() => setSelectedTask(null), [])
+  const selectedNode = graph.nodes.find((node) => node.id === selectedTask)
 
   // Task history across runs
   const taskHistory = useMemo(() => {
@@ -153,9 +156,9 @@ function FlowCanvas({ graph, dagId }: { graph: DAGGraph; dagId: string }) {
   }, [runs, selectedTask])
 
   return (
-    <div className="relative flex h-full">
+    <div className="relative flex h-full min-h-105">
       {/* Graph canvas */}
-      <div className={cn('h-full transition-all duration-200', selectedTask ? 'w-[calc(100%-400px)]' : 'w-full')}>
+      <div className={cn('h-full w-full transition-all duration-200', selectedTask && 'lg:w-[calc(100%-400px)]')}>
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -171,61 +174,84 @@ function FlowCanvas({ graph, dagId }: { graph: DAGGraph; dagId: string }) {
           proOptions={{ hideAttribution: true }}
           className="bg-bg!"
         >
-          <Background color="#1f2131" gap={20} size={1} />
+          <Background color="var(--color-border-bright)" gap={20} size={1} />
           <Controls
             showInteractive={false}
-            className="bg-bg-raised! border-border! rounded-lg! shadow-lg! shadow-black/30! [&>button]:bg-bg-raised! [&>button]:border-border! [&>button]:text-ink-muted! [&>button:hover]:bg-bg-hover! [&>button>svg]:fill-ink-muted!"
+            className="rounded-md! border-border! bg-bg-raised! shadow-sm! shadow-ink/10! [&>button]:border-border! [&>button]:bg-bg-raised! [&>button]:text-ink-muted! [&>button:hover]:bg-bg-hover! [&>button>svg]:fill-ink-muted!"
           />
           <MiniMap
             nodeColor={(n) => {
               const state = (n.data as TaskNodeData | undefined)?.state ?? 'none'
               switch (state) {
-                case 'success': return '#10b981'
+                case 'success': return 'var(--color-success)'
                 case 'failed':
-                case 'upstream_failed': return '#ef4444'
-                case 'running': return '#3b82f6'
-                case 'timeout': return '#f59e0b'
-                case 'skipped': return '#6b7280'
-                default: return '#9ca3af'
+                case 'upstream_failed': return 'var(--color-error)'
+                case 'running': return 'var(--color-running)'
+                case 'timeout': return 'var(--color-warning)'
+                case 'skipped': return 'var(--color-ink-muted)'
+                default: return 'var(--color-border-bright)'
               }
             }}
-            nodeStrokeColor="#1f2131"
-            nodeStrokeWidth={2}
-            maskColor="rgba(15, 17, 23, 0.6)"
+            nodeStrokeColor="var(--color-bg)"
+            nodeStrokeWidth={1}
+            maskColor="var(--color-bg-surface)"
             pannable
             zoomable
-            className="bg-bg-raised! border! border-border! rounded-lg!"
+            className="hidden! rounded-md! border! border-border! bg-bg-raised! sm:block!"
           />
         </ReactFlow>
       </div>
 
       {/* Slide-out task panel */}
       {selectedTask && (
-        <aside className="flex h-full w-100 shrink-0 flex-col border-l border-border bg-bg-raised">
+        <aside className="absolute inset-0 z-10 flex h-full w-full shrink-0 flex-col border-l border-border bg-bg-raised sm:right-0 sm:left-auto sm:w-100 lg:static">
           {/* Panel header */}
           <div className="flex items-center justify-between border-b border-border px-4 py-3">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <span className="truncate text-sm font-semibold">{selectedTask}</span>
-                <StateBadge state={graph.nodes.find((n) => n.id === selectedTask)?.state ?? 'none'} />
+                <StateBadge state={selectedNode?.state ?? 'none'} />
               </div>
             </div>
             {latestRun && (
               <Link
                 to={`/ui/runs/${latestRun.run_id}`}
-                className="mr-2 rounded p-1 text-ink-muted transition-colors hover:bg-bg-hover hover:text-ink"
+                className="mr-2 rounded-sm p-1 text-ink-muted transition-colors hover:bg-bg-hover hover:text-ink"
                 title="Open full run detail"
               >
                 <ExternalLink size={13} />
               </Link>
             )}
             <button
+              type="button"
               onClick={() => setSelectedTask(null)}
-              className="rounded p-1 text-ink-muted transition-colors hover:bg-bg-hover hover:text-ink"
+              className="rounded-sm p-1 text-ink-muted transition-colors hover:bg-bg-hover hover:text-ink"
+              aria-label="Close task inspector"
             >
               <X size={14} />
             </button>
           </div>
+
+          {selectedNode && (
+            <dl className="grid grid-cols-2 gap-4 border-b border-border px-4 py-3">
+              <div>
+                <dt className="font-mono text-[9px] uppercase tracking-[0.14em] text-ink-muted">
+                  Trigger rule
+                </dt>
+                <dd className="mt-1 font-mono text-[11px] text-ink-secondary">
+                  {selectedNode.trigger_rule}
+                </dd>
+              </div>
+              <div>
+                <dt className="font-mono text-[9px] uppercase tracking-[0.14em] text-ink-muted">
+                  Retries
+                </dt>
+                <dd className="mt-1 font-mono text-[11px] text-ink-secondary">
+                  {selectedNode.retries}
+                </dd>
+              </div>
+            </dl>
+          )}
 
           {/* Task history (mini) */}
           {taskHistory.length > 0 && (
@@ -294,7 +320,7 @@ function toReactFlow(graph: DAGGraph, dagId: string, selectedTask: string | null
     target: e.target,
     type: 'smoothstep',
     animated: graph.is_running,
-    style: { stroke: '#2c2f44', strokeWidth: 1.5 },
+    style: { stroke: 'var(--color-ink-muted)', strokeWidth: 1.25 },
   }))
 
   return { nodes, edges }

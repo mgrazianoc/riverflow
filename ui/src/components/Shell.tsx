@@ -31,9 +31,9 @@ export function Shell() {
     <div className="flex h-screen flex-col overflow-hidden">
       {/* Masthead */}
       <header className="shrink-0 border-b border-border bg-bg">
-        <div className="mx-auto flex h-14 max-w-7xl items-center gap-10 px-8">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center px-4 sm:h-14 sm:flex-nowrap sm:gap-8 sm:px-6 lg:gap-10 lg:px-8">
           {/* Brand */}
-          <NavLink to="/ui" end className="flex items-center gap-2.5 text-ink">
+          <NavLink to="/ui" end className="flex h-12 items-center gap-2.5 text-ink sm:h-auto">
             <Logo size={18} className="shrink-0" />
             <span className="font-display text-[17px] font-medium tracking-tight">
               Riverflow
@@ -41,7 +41,10 @@ export function Shell() {
           </NavLink>
 
           {/* Nav — text only, editorial rhythm */}
-          <nav className="flex items-center gap-6">
+          <nav
+            aria-label="Primary"
+            className="order-3 -mx-4 flex w-[calc(100%+2rem)] items-center gap-6 overflow-x-auto border-t border-border/60 px-4 sm:order-none sm:mx-0 sm:w-auto sm:overflow-visible sm:border-0 sm:px-0"
+          >
             {navItems.map(({ to, label, end }) => (
               <NavLink
                 key={to}
@@ -49,10 +52,10 @@ export function Shell() {
                 end={end}
                 className={({ isActive }) =>
                   cn(
-                    'text-[13px] transition-colors',
+                    'flex h-10 shrink-0 items-center border-b text-[13px] transition-colors sm:h-auto sm:border-0',
                     isActive
-                      ? 'text-ink'
-                      : 'text-ink-muted hover:text-ink-secondary',
+                      ? 'border-ink text-ink sm:border-transparent'
+                      : 'border-transparent text-ink-muted hover:text-ink-secondary',
                   )
                 }
               >
@@ -62,7 +65,7 @@ export function Shell() {
           </nav>
 
           {/* Right — liveness + Cmd-K hint */}
-          <div className="ml-auto flex items-center gap-5 text-[11px] text-ink-muted">
+          <div className="ml-auto flex items-center gap-4 text-[11px] text-ink-muted sm:gap-5">
             <span className="flex items-center gap-1.5">
               <span
                 className={cn(
@@ -71,7 +74,9 @@ export function Shell() {
                 )}
                 aria-label={connected ? 'Connected' : 'Disconnected'}
               />
-              <span className="tabular-nums">{connected ? 'Live' : 'Reconnecting'}</span>
+              <span className="hidden tabular-nums min-[430px]:inline">
+                {connected ? 'Live' : 'Reconnecting'}
+              </span>
             </span>
             <button
               type="button"
@@ -80,8 +85,9 @@ export function Shell() {
                   key: 'k', [isMac ? 'metaKey' : 'ctrlKey']: true, bubbles: true,
                 }))
               }}
-              className="flex items-center gap-1 text-ink-muted transition-colors hover:text-ink-secondary"
+              className="hidden items-center gap-1 text-ink-muted transition-colors hover:text-ink-secondary sm:flex"
               title="Open command palette"
+              aria-label={`Open command palette (${isMac ? 'Command' : 'Control'} K)`}
             >
               <kbd className="rounded-sm border border-border bg-bg-raised px-1 font-mono text-[9px] leading-4">
                 {isMac ? '⌘' : 'Ctrl'}
@@ -93,7 +99,7 @@ export function Shell() {
       </header>
 
       {/* Main content */}
-      <main className="flex-1 overflow-y-auto bg-bg">
+      <main className="flex-1 overflow-x-hidden overflow-y-auto bg-bg">
         <Outlet />
       </main>
 
@@ -101,4 +107,3 @@ export function Shell() {
     </div>
   )
 }
-

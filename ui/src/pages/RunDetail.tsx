@@ -1,14 +1,21 @@
 import { useQuery } from '@tanstack/react-query'
 import { useParams, Link } from 'react-router'
-import { useState } from 'react'
 import { api } from '../api'
 import { LogViewer } from '../components/LogViewer'
 import { StateBadge } from '../components/StatusBadge'
+import { useToast } from '../hooks/useToast'
+import { useUrlState } from '../hooks/useUrlState'
 import { formatDuration, relativeTime, cn } from '../lib/utils'
 
 export function RunDetail() {
   const { runId } = useParams<{ runId: string }>()
-  const [selectedTask, setSelectedTask] = useState<string | null>(null)
+  const toast = useToast()
+  const [selectedTask, setSelectedTask] = useUrlState<string | null>(
+    'task',
+    null,
+    (raw) => raw || null,
+    (value) => value,
+  )
 
   // Find the run in history
   const { data: runs = [] } = useQuery({
@@ -41,12 +48,16 @@ export function RunDetail() {
   }
 
   const taskIds = Object.keys(run.task_states).sort()
+  const copyRunId = async () => {
+    await navigator.clipboard.writeText(run.run_id)
+    toast.push('Copied run ID', 'success')
+  }
 
   return (
     <div className="flex h-full flex-col">
       {/* Header — editorial, matches DAGDetail rhythm */}
       <header className="shrink-0 border-b border-border">
-        <div className="mx-auto max-w-7xl px-8 pt-8 pb-5">
+        <div className="mx-auto max-w-7xl px-4 pt-6 pb-5 sm:px-6 sm:pt-8 lg:px-8">
           <div className="mb-4 flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.14em] text-ink-muted">
             <Link to={`/ui/dags/${run.dag_id}`} className="transition-colors hover:text-ink">
               ← {run.dag_id}
@@ -54,12 +65,21 @@ export function RunDetail() {
             <span>Run</span>
           </div>
 
-          <div className="flex items-start gap-4">
+          <div className="flex items-start gap-3 sm:gap-4">
             <div className="min-w-0 flex-1">
-              <h1 className="truncate font-mono text-[20px] font-medium tracking-tight text-ink">
-                {run.run_id}
-              </h1>
-              <div className="mt-2 flex items-center gap-4">
+              <div className="flex min-w-0 items-center gap-3">
+                <h1 className="truncate font-mono text-[16px] font-medium tracking-tight text-ink sm:text-[20px]">
+                  {run.run_id}
+                </h1>
+                <button
+                  type="button"
+                  onClick={() => void copyRunId()}
+                  className="shrink-0 font-mono text-[9px] uppercase tracking-[0.12em] text-ink-muted transition-colors hover:text-accent"
+                >
+                  Copy ID
+                </button>
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
                 <StateBadge state={run.state} />
                 <span className="font-mono text-[11px] text-ink-muted">
                   {run.start_time && <>started {relativeTime(run.start_time)}</>}
@@ -82,7 +102,7 @@ export function RunDetail() {
             </pre>
           )}
 
-          <div className="mt-5 grid grid-cols-4 gap-5 border-t border-border pt-4">
+          <div className="mt-5 grid grid-cols-2 gap-4 border-t border-border pt-4 sm:grid-cols-4 sm:gap-5">
             <RunContextItem label="Source" value={run.trigger_source ?? 'manual'} />
             <RunContextItem label="Mode" value={run.trigger_mode ?? '—'} />
             <RunContextItem label="Requested by" value={run.requested_by ?? '—'} />
@@ -101,14 +121,15 @@ export function RunDetail() {
         </div>
       </header>
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 flex-col overflow-hidden sm:flex-row">
         {/* Task sidebar */}
-        <aside className="w-60 shrink-0 overflow-y-auto border-r border-border bg-bg-raised/60">
-          <div className="px-4 pt-4">
+        <aside className="max-h-42 w-full shrink-0 overflow-y-auto border-b border-border bg-bg-raised/60 sm:max-h-none sm:w-60 sm:border-r sm:border-b-0">
+          <div className="px-4 pt-3 sm:pt-4">
             <div className="font-mono text-[9px] font-medium uppercase tracking-[0.14em] text-ink-muted">
               Tasks
             </div>
             <button
+              type="button"
               onClick={() => setSelectedTask(null)}
               className={cn(
                 'mt-2 w-full rounded-sm px-2 py-1 text-left text-[12px] transition-colors',
@@ -120,9 +141,10 @@ export function RunDetail() {
               All tasks
             </button>
           </div>
-          <div className="mt-1 space-y-px px-4 pb-4">
+          <div className="mt-1 grid grid-cols-2 gap-px px-4 pb-3 sm:block sm:space-y-px sm:pb-4">
             {taskIds.map((tid) => (
               <button
+                type="button"
                 key={tid}
                 onClick={() => setSelectedTask(tid)}
                 className={cn(

@@ -83,11 +83,11 @@ export function LogViewer({ logs, loading, streaming, className }: LogViewerProp
   }
 
   return (
-    <div className={cn('flex flex-col', className)}>
+    <div className={cn('relative flex min-h-0 flex-col', className)}>
       {/* Toolbar */}
-      <div className="flex items-center gap-2 border-b border-border bg-bg-raised px-3 py-2">
+      <div className="flex flex-wrap items-center gap-2 border-b border-border bg-bg-raised px-3 py-2">
         {/* Search */}
-        <div className="relative flex-1">
+        <div className="relative min-w-48 flex-1">
           <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-ink-muted" />
           <input
             type="text"
@@ -98,8 +98,10 @@ export function LogViewer({ logs, loading, streaming, className }: LogViewerProp
           />
           {search && (
             <button
+              type="button"
               onClick={() => setSearch('')}
               className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink"
+              aria-label="Clear log search"
             >
               <X size={11} />
             </button>
@@ -107,12 +109,14 @@ export function LogViewer({ logs, loading, streaming, className }: LogViewerProp
         </div>
 
         {/* Level filters */}
-        <div className="flex items-center gap-1">
+        <div className="flex max-w-full items-center gap-1 overflow-x-auto">
           <Filter size={11} className="text-ink-muted" />
           {Array.from(levels.entries()).map(([level, count]) => (
             <button
+              type="button"
               key={level}
               onClick={() => toggleLevel(level)}
+              aria-pressed={levelFilter.has(level)}
               className={cn(
                 'rounded-md px-1.5 py-0.5 text-[10px] font-medium transition-colors',
                 levelFilter.size === 0 || levelFilter.has(level)
@@ -174,11 +178,12 @@ export function LogViewer({ logs, loading, streaming, className }: LogViewerProp
       {/* Scroll-to-bottom indicator */}
       {streaming && !autoScroll && (
         <button
+          type="button"
           onClick={() => {
             setAutoScroll(true)
             scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
           }}
-          className="absolute bottom-4 right-4 flex items-center gap-1 rounded-full bg-accent px-2.5 py-1 text-[10px] font-medium text-bg shadow-md shadow-ink/20"
+          className="absolute right-3 bottom-3 flex items-center gap-1 rounded-md border border-ink bg-ink px-2.5 py-1 text-[10px] font-medium text-bg shadow-sm shadow-ink/20 transition-colors hover:border-accent hover:bg-accent"
         >
           <ArrowDown size={10} />
           New logs
@@ -191,14 +196,22 @@ export function LogViewer({ logs, loading, streaming, className }: LogViewerProp
 function HighlightedMessage({ message, search }: { message: string; search: string }) {
   if (!search) return <>{message}</>
 
-  const idx = message.toLowerCase().indexOf(search.toLowerCase())
-  if (idx === -1) return <>{message}</>
+  const needle = search.toLowerCase()
+  const parts: React.ReactNode[] = []
+  let cursor = 0
+  let match = message.toLowerCase().indexOf(needle)
+  if (match === -1) return <>{message}</>
 
-  return (
-    <>
-      {message.slice(0, idx)}
-      <mark className="rounded-sm bg-warning/30 text-warning px-0.5">{message.slice(idx, idx + search.length)}</mark>
-      {message.slice(idx + search.length)}
-    </>
-  )
+  while (match !== -1) {
+    parts.push(message.slice(cursor, match))
+    parts.push(
+      <mark key={match} className="rounded-sm bg-warning/30 px-0.5 text-warning">
+        {message.slice(match, match + search.length)}
+      </mark>,
+    )
+    cursor = match + search.length
+    match = message.toLowerCase().indexOf(needle, cursor)
+  }
+  parts.push(message.slice(cursor))
+  return <>{parts}</>
 }

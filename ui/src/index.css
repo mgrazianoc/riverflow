@@ -107,6 +107,17 @@ body {
 /* Links inherit ink by default, reveal accent on hover */
 a { color: inherit; text-decoration: none; }
 
+/* Interactive controls should read as interactive before they move. */
+button,
+[role="button"] {
+  cursor: pointer;
+}
+
+button:disabled,
+[aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
 /* Kill the iOS tap highlight */
 * { -webkit-tap-highlight-color: transparent; }
 
@@ -121,4 +132,3 @@ a { color: inherit; text-decoration: none; }
     scroll-behavior: auto !important;
   }
 }
-

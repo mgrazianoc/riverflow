@@ -27,7 +27,7 @@ export function Host() {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
 
   return (
-    <div className="mx-auto max-w-7xl px-8 pt-10 pb-14">
+    <div className="mx-auto max-w-7xl px-4 pt-7 pb-12 sm:px-6 sm:pt-10 sm:pb-14 lg:px-8">
       {/* Masthead */}
       <div className="mb-6 flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.14em] text-ink-muted">
         <span>
@@ -42,7 +42,7 @@ export function Host() {
       <div className="border-t border-ink" />
 
       {/* Headline + current-state band */}
-      <div className="flex items-end justify-between gap-10 pt-8 pb-8">
+      <div className="flex flex-col items-start justify-between gap-6 pt-8 pb-8 sm:flex-row sm:items-end sm:gap-10">
         <div>
           <h1 className="font-display text-[34px] font-light leading-[1.05] tracking-[-0.015em] text-ink">
             Host metrics
@@ -128,7 +128,7 @@ function Section({ label, children }: { label: string; children: React.ReactNode
 
 function CurrentBand({ sample }: { sample: HostSamplePoint }) {
   return (
-    <dl className="grid grid-cols-4 gap-8 text-right">
+    <dl className="grid w-full grid-cols-4 gap-4 text-left sm:w-auto sm:gap-8 sm:text-right">
       <Stat label="CPU" value={`${sample.cpu_percent.toFixed(0)}%`} />
       <Stat label="Memory" value={`${sample.mem_percent.toFixed(0)}%`} />
       <Stat label="Disk" value={`${sample.disk_percent.toFixed(0)}%`} />
@@ -146,7 +146,7 @@ function Stat({ label, value }: { label: string; value: string }) {
       <dt className="font-mono text-[9px] uppercase tracking-[0.14em] text-ink-muted">
         {label}
       </dt>
-      <dd className="mt-1 font-mono text-[18px] tabular-nums text-ink">{value}</dd>
+      <dd className="mt-1 truncate font-mono text-[15px] tabular-nums text-ink sm:text-[18px]">{value}</dd>
     </div>
   )
 }

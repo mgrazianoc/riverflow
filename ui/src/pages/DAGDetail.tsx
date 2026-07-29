@@ -78,7 +78,7 @@ export function DAGDetail() {
   return (
     <div className="flex h-full flex-col">
       <header className="shrink-0 border-b border-border">
-        <div className="mx-auto max-w-7xl px-8 pt-8">
+        <div className="mx-auto max-w-7xl px-4 pt-6 sm:px-6 sm:pt-8 lg:px-8">
           {/* Masthead row */}
           <div className="mb-4 flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.14em] text-ink-muted">
             <Link to="/ui/dags" className="transition-colors hover:text-ink">
@@ -88,7 +88,7 @@ export function DAGDetail() {
           </div>
 
           {/* Title row — editorial */}
-          <div className="flex items-start gap-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
             <div className="min-w-0 flex-1">
               <h1 className="font-display text-[34px] font-light leading-[1.05] tracking-[-0.015em] text-ink">
                 {dag.dag_id}
@@ -101,7 +101,7 @@ export function DAGDetail() {
               </div>
             </div>
 
-            <div className="flex shrink-0 items-center gap-4">
+            <div className="flex shrink-0 items-center justify-between gap-4 sm:justify-start">
               <button
                 onClick={handleClearHistory}
                 disabled={clearHistory.isPending || dag.total_runs === 0}
@@ -144,7 +144,10 @@ export function DAGDetail() {
           </div>
 
           {/* Tabs */}
-          <nav className="mt-6 flex gap-6">
+          <nav
+            aria-label="DAG views"
+            className="-mx-4 mt-6 flex gap-6 overflow-x-auto px-4 sm:mx-0 sm:px-0"
+          >
             {tabs.map(({ to, label, end }) => (
               <NavLink
                 key={label}
@@ -152,7 +155,7 @@ export function DAGDetail() {
                 end={end}
                 className={({ isActive }) =>
                   cn(
-                    '-mb-px border-b px-0 pb-2.5 text-[13px] transition-colors',
+                    '-mb-px shrink-0 border-b px-0 pb-2.5 text-[13px] transition-colors',
                     isActive
                       ? 'border-ink text-ink'
                       : 'border-transparent text-ink-muted hover:text-ink-secondary',
@@ -166,7 +169,7 @@ export function DAGDetail() {
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto">
         <Outlet />
       </div>
 
@@ -211,9 +214,9 @@ export function DAGOverview() {
   if (!dag) return null
 
   return (
-    <div className="mx-auto grid max-w-7xl grid-cols-3 gap-10 px-8 py-10">
+    <div className="mx-auto grid max-w-7xl grid-cols-1 gap-10 px-4 py-8 sm:px-6 sm:py-10 lg:grid-cols-3 lg:px-8">
       {/* Recent runs */}
-      <section className="col-span-2">
+      <section className="lg:col-span-2">
         <h3 className="mb-4 font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-ink-muted">Recent runs</h3>
         {runsQ.isLoading ? (
           <SkeletonRows rows={4} columns={3} />
@@ -227,19 +230,19 @@ export function DAGOverview() {
               <Link
                 key={r.run_id}
                 to={`/ui/runs/${r.run_id}`}
-                className="group flex items-center gap-4 py-2 transition-colors hover:bg-bg-raised/50"
+                className="group grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 py-2.5 transition-colors hover:bg-bg-raised/50 sm:flex sm:gap-4 sm:py-2"
               >
                 <StateBadge state={r.state} compact />
                 <span className="flex-1 truncate font-mono text-[11px] text-ink-secondary group-hover:text-accent">
                   {r.run_id}
                 </span>
-                <span className="w-20 text-right text-xs tabular-nums text-ink-muted">
+                <span className="text-right text-xs tabular-nums text-ink-muted sm:w-20">
                   {r.duration_seconds != null ? formatDuration(r.duration_seconds) : '—'}
                 </span>
-                <span className="w-28 truncate text-right font-mono text-[10px] text-ink-muted">
+                <span className="col-start-2 truncate font-mono text-[10px] text-ink-muted sm:w-28 sm:text-right">
                   {r.trigger_source ?? 'manual'}{r.trigger_mode ? `/${r.trigger_mode}` : ''}
                 </span>
-                <RelativeTime iso={r.start_time} className="w-20 text-right text-xs tabular-nums text-ink-muted" />
+                <RelativeTime iso={r.start_time} className="col-start-3 text-right text-xs tabular-nums text-ink-muted sm:w-20" />
               </Link>
             ))}
           </div>
@@ -325,16 +328,17 @@ export function DAGHistory() {
   }, [runsQ.data, stateFilter, search])
 
   return (
-    <div className="mx-auto max-w-7xl px-8 py-10">
-      <div className="mb-4 flex items-center gap-5 border-b border-border pb-3">
+    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
+      <div className="mb-4 flex flex-wrap items-center gap-x-5 gap-y-3 border-b border-border pb-3">
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search run ID…"
-          className="w-64 border-0 bg-transparent py-1 text-[13px] text-ink placeholder:text-ink-muted focus:outline-none"
+          aria-label="Search run history"
+          className="min-w-0 flex-1 border-0 bg-transparent py-1 text-[13px] text-ink placeholder:text-ink-muted focus:outline-none sm:w-64 sm:flex-none"
         />
-        <div className="flex gap-4 font-mono text-[10px] uppercase tracking-[0.14em]">
+        <div className="order-3 flex w-full gap-4 overflow-x-auto font-mono text-[10px] uppercase tracking-[0.14em] sm:order-none sm:w-auto">
           {STATE_FILTERS.map((f) => (
             <button
               key={f.value}
@@ -348,7 +352,7 @@ export function DAGHistory() {
             </button>
           ))}
         </div>
-        <span className="ml-auto font-mono text-[11px] text-ink-muted">
+        <span className="ml-auto shrink-0 font-mono text-[11px] text-ink-muted">
           {runsQ.data ? `${filtered.length} / ${runsQ.data.length}` : ''}
         </span>
       </div>
@@ -362,7 +366,8 @@ export function DAGHistory() {
       ) : filtered.length === 0 ? (
         <p className="py-16 text-center text-sm text-ink-muted">No matches.</p>
       ) : (
-        <table className="w-full text-left">
+        <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+        <table className="min-w-210 w-full text-left">
           <colgroup>
             <col className="w-27.5" />
             <col />
@@ -411,6 +416,7 @@ export function DAGHistory() {
             })}
           </tbody>
         </table>
+        </div>
       )}
     </div>
   )
@@ -463,8 +469,9 @@ export function DAGTasks() {
   if (!dag) return null
 
   return (
-    <div className="mx-auto max-w-7xl px-8 py-10">
-      <table className="w-full text-left">
+    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
+      <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+      <table className="min-w-180 w-full text-left">
         <thead>
           <tr className="border-b border-border text-left font-mono text-[9px] font-medium uppercase tracking-[0.14em] text-ink-muted">
             <th className="py-2.5">Task</th>
@@ -490,7 +497,7 @@ export function DAGTasks() {
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   )
 }
-

@@ -77,7 +77,7 @@ export function DAGList() {
   useRowNav('tr[data-row="dag"]', [rows.length])
 
   return (
-    <div className="mx-auto max-w-7xl px-8 pt-10 pb-14">
+    <div className="mx-auto max-w-7xl px-4 pt-7 pb-12 sm:px-6 sm:pt-10 sm:pb-14 lg:px-8">
       {/* Masthead label */}
       <div className="mb-6 flex items-center justify-between">
         <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-muted">
@@ -95,14 +95,15 @@ export function DAGList() {
       </h1>
 
       {/* Inline controls */}
-      <div className="mt-6 flex items-center gap-6 border-b border-border pb-3">
+      <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-border pb-3">
         <input
           ref={filterRef}
           type="text"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           placeholder="Filter by name…  press / to focus"
-          className="w-72 border-0 bg-transparent py-1 text-[13px] text-ink placeholder:text-ink-muted focus:outline-none"
+          aria-label="Filter DAGs by name"
+          className="min-w-0 flex-1 border-0 bg-transparent py-1 text-[13px] text-ink placeholder:text-ink-muted focus:outline-none sm:w-72 sm:flex-none"
         />
         <label className="flex cursor-pointer items-center gap-2 text-[12px] text-ink-secondary select-none">
           <input
@@ -124,7 +125,8 @@ export function DAGList() {
       ) : rows.length === 0 ? (
         <p className="py-20 text-sm text-ink-muted">No matches for “{filter}”.</p>
       ) : (
-        <table className="mt-1 w-full">
+        <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+        <table className="mt-1 min-w-215 w-full">
           <colgroup>
             <col />
             <col className="w-32.5" />
@@ -149,6 +151,7 @@ export function DAGList() {
             ))}
           </tbody>
         </table>
+        </div>
       )}
     </div>
   )
@@ -161,6 +164,7 @@ function SortTh({
   return (
     <th className={cn('py-2.5', align === 'right' && 'text-right')}>
       <button
+        type="button"
         onClick={() => onClick(k)}
         className={cn(
           'inline-flex items-center gap-1 uppercase transition-colors hover:text-ink-secondary',
